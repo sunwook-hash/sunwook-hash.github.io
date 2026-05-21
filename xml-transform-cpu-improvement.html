@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eLink Transformer CPU Hotspot Animation</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --paper: #fff;
+      --ink: #17202c;
+      --muted: #667386;
+      --line: #d6dee8;
+      --old: #c84646;
+      --old-soft: #fff1f1;
+      --new: #1d7a58;
+      --new-soft: #edf8f2;
+      --send: #285bb7;
+      --send-soft: #edf3ff;
+      --recv: #7a4c14;
+      --recv-soft: #fff6df;
+      --accent: #5c4bb2;
+      --accent-soft: #f1efff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 18px 42px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: end;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 27px; letter-spacing: 0; }
+    h2 { font-size: 18px; letter-spacing: 0; }
+    h3 { font-size: 14px; letter-spacing: 0; }
+
+    code, pre {
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #edf1f6;
+      color: #243246;
+    }
+
+    pre {
+      min-height: 332px;
+      max-height: 430px;
+      overflow: auto;
+      margin: 0;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+
+    button {
+      min-height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    button:hover { border-color: #aab7c7; }
+    button.primary { border-color: var(--send); background: var(--send); color: #fff; }
+    button.active { border-color: var(--send); background: var(--send-soft); color: var(--send); }
+
+    .sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .cols-2 { grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr); }
+    .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 1px 2px rgba(23, 32, 44, 0.04);
+    }
+
+    .panel-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr) 36px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+    }
+
+    .flow-step {
+      min-height: 58px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .flow-step b {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    .flow-step span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--send);
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .badge.old { color: var(--old); background: var(--old-soft); }
+    .badge.new { color: var(--new); background: var(--new-soft); }
+    .badge.send { color: var(--send); background: var(--send-soft); }
+    .badge.recv { color: var(--recv); background: var(--recv-soft); }
+    .badge.accent { color: var(--accent); background: var(--accent-soft); }
+
+    .meter {
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e6edf5;
+    }
+
+    .meter i {
+      display: block;
+      width: 0%;
+      height: 100%;
+      transition: width 220ms ease;
+    }
+
+    .meter.old i { background: var(--old); }
+    .meter.new i { background: var(--new); }
+    .meter.send i { background: var(--send); }
+
+    .progress-line {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stat {
+      display: grid;
+      gap: 7px;
+      min-height: 106px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .num {
+      font-size: 25px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .sim {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .lane {
+      min-height: 440px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .lane.old { background: var(--old-soft); }
+    .lane.new { background: var(--new-soft); }
+
+    .lane-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) 84px;
+      gap: 8px;
+      align-items: center;
+      min-height: 42px;
+      margin: 7px 0;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      font-size: 12px;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .row.active {
+      transform: translateY(-1px);
+    }
+
+    .row.old.active {
+      border-color: var(--old);
+      box-shadow: 0 0 0 3px rgba(200, 70, 70, 0.16);
+    }
+
+    .row.new.active {
+      border-color: var(--new);
+      box-shadow: 0 0 0 3px rgba(29, 122, 88, 0.16);
+    }
+
+    .idx {
+      display: grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .row.old.active .idx { background: var(--old); }
+    .row.new.active .idx { background: var(--new); }
+
+    .path {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #344255;
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .cost {
+      text-align: right;
+      font-weight: 900;
+    }
+
+    .detail {
+      display: grid;
+      gap: 10px;
+      min-height: 160px;
+      padding: 12px;
+      border: 1px dashed #b8c4d3;
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .formula {
+      display: grid;
+      gap: 6px;
+      min-height: 76px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      font-size: 13px;
+    }
+
+    .formula b { font-size: 12px; }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      min-height: 26px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .chip.old { border-color: rgba(200, 70, 70, 0.35); color: var(--old); background: #fffafa; }
+    .chip.new { border-color: rgba(29, 122, 88, 0.35); color: var(--new); background: #f8fffb; }
+    .chip.flash { animation: flash 460ms ease; }
+
+    @keyframes flash {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.07); }
+      100% { transform: scale(1); }
+    }
+
+    .note {
+      padding: 11px 12px;
+      border-left: 4px solid var(--recv);
+      border-radius: 6px;
+      background: var(--recv-soft);
+      color: #60400e;
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .split-sample {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .sample-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 1020px) {
+      header,
+      .cols-2,
+      .cols-3,
+      .cols-4,
+      .sim,
+      .split-sample {
+        grid-template-columns: 1fr;
+      }
+
+      .meta { text-align: left; }
+      .flow { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); }
+      pre { min-height: 220px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>eLink 송신/수신 CPU Hotspot 애니메이션</h1>
+      <div class="sub">샘플 XML/JSON을 기준으로 기존 방식과 개선 방식의 반복 연산 차이를 단계별로 보여줍니다.</div>
+    </div>
+    <div class="meta">XMLMessage.java<br>UXMLMessage.java</div>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="controls">
+        <button id="modeReceive" class="active">수신 XML -&gt; 내부값</button>
+        <button id="modeSend">송신 JSON -&gt; XML</button>
+        <button id="play" class="primary">Play</button>
+        <button id="step">Step</button>
+        <button id="reset">Reset</button>
+      </div>
+      <span id="modeBadge" class="badge recv">수신: getUniquePath 제거</span>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">
+        <b id="flowA">외부 XML 수신</b>
+        <span id="flowAText">dom4j Element 트리를 순회합니다.</span>
+      </div>
+      <div class="arrow">›</div>
+      <div class="flow-step">
+        <b id="flowB">XPath 계산</b>
+        <span id="flowBText">기존은 노드마다 전체 경로를 다시 계산합니다.</span>
+      </div>
+      <div class="arrow">›</div>
+      <div class="flow-step">
+        <b id="flowC">Layout Item 저장</b>
+        <span id="flowCText">개선은 부모 경로와 형제 index를 재사용합니다.</span>
+      </div>
+    </div>
+
+    <div class="progress-line">
+      <div class="meter send"><i id="progressBar"></i></div>
+      <div id="progressText">0 / 0</div>
+    </div>
+  </section>
+
+  <section class="grid cols-2">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="sampleHeading">ISO20022 스타일 수신 XML</h2>
+        <span id="sampleBadge" class="badge recv">수신 입력</span>
+      </div>
+      <div id="sampleWrap">
+        <pre id="sampleText"></pre>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>현재 단계</h2>
+        <span id="stageBadge" class="badge accent">대기</span>
+      </div>
+      <div class="grid cols-4">
+        <div class="stat">
+          <div id="currentName" class="num">-</div>
+          <div class="label">node / stage</div>
+        </div>
+        <div class="stat">
+          <div id="currentDepth" class="num">-</div>
+          <div class="label">depth / size</div>
+        </div>
+        <div class="stat">
+          <div id="currentIndex" class="num">-</div>
+          <div class="label">sibling / repeat</div>
+        </div>
+        <div class="stat">
+          <div id="currentSaved" class="num">-</div>
+          <div class="label">saved units</div>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="formula">
+          <b class="badge old">기존 방식</b>
+          <div id="oldFormula"></div>
+        </div>
+        <div class="formula">
+          <b class="badge new">개선 방식</b>
+          <div id="newFormula"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid cols-3">
+    <div class="stat">
+      <div id="oldCost" class="num">0</div>
+      <div class="label">기존 누적 연산 단위</div>
+      <div class="meter old"><i id="oldMeter"></i></div>
+    </div>
+    <div class="stat">
+      <div id="newCost" class="num">0</div>
+      <div class="label">개선 누적 연산 단위</div>
+      <div class="meter new"><i id="newMeter"></i></div>
+    </div>
+    <div class="stat">
+      <div id="savedCost" class="num">0</div>
+      <div class="label">감소 연산 단위</div>
+      <div class="meter send"><i id="savedMeter"></i></div>
+    </div>
+  </section>
+
+  <section class="grid cols-2">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>연산 장면</h2>
+        <span id="visualBadge" class="badge old">전체 XPath 재계산</span>
+      </div>
+      <div class="detail">
+        <div>
+          <h3 id="oldVisualTitle">기존</h3>
+          <div id="oldChips" class="chips"></div>
+        </div>
+        <div>
+          <h3 id="newVisualTitle">개선</h3>
+          <div id="newChips" class="chips"></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="badge old">빨강: 반복 계산</span>
+        <span class="badge new">초록: 재사용 또는 cache hit</span>
+        <span class="badge accent">수치는 상대 연산 단위</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>핵심 변경점</h2>
+        <span id="patchBadge" class="badge recv">Critical 최소 패치</span>
+      </div>
+      <div id="patchNote" class="note"></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <div class="sim">
+        <div class="lane old">
+          <div class="lane-title">
+            <span>기존 방식</span>
+            <span class="badge old" id="oldLaneBadge">getUniquePath per node</span>
+          </div>
+          <div id="oldRows"></div>
+        </div>
+        <div class="lane new">
+          <div class="lane-title">
+            <span>개선 방식</span>
+            <span class="badge new" id="newLaneBadge">parentPath + sibling index</span>
+          </div>
+          <div id="newRows"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const xmlSample = `<Document>
+  <FIToFICstmrCdtTrf>
+    <GrpHdr>
+      <MsgId>ELINK-20260521-0001</MsgId>
+      <CreDtTm>2026-05-21T10:15:30+09:00</CreDtTm>
+      <NbOfTxs>2</NbOfTxs>
+      <SttlmInf>
+        <SttlmMtd>CLRG</SttlmMtd>
+        <ClrSys>
+          <Cd>KFTC</Cd>
+        </ClrSys>
+      </SttlmInf>
+    </GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId>
+        <InstrId>INST-0001</InstrId>
+        <EndToEndId>E2E-0001</EndToEndId>
+        <TxId>TX-0001</TxId>
+      </PmtId>
+      <IntrBkSttlmAmt Ccy="KRW">125000</IntrBkSttlmAmt>
+      <Dbtr>
+        <Nm>HANA TRADING</Nm>
+        <PstlAdr>
+          <Ctry>KR</Ctry>
+          <AdrLine>Seoul Jung-gu 10</AdrLine>
+        </PstlAdr>
+      </Dbtr>
+      <DbtrAcct>
+        <Id>
+          <Othr>
+            <Id>110123456789</Id>
+          </Othr>
+        </Id>
+      </DbtrAcct>
+      <CdtrAgt>
+        <FinInstnId>
+          <BICFI>KOEXKRSE</BICFI>
+          <ClrSysMmbId>
+            <MmbId>081</MmbId>
+          </ClrSysMmbId>
+        </FinInstnId>
+      </CdtrAgt>
+      <Cdtr>
+        <Nm>SEOUL RETAIL</Nm>
+        <PstlAdr>
+          <Ctry>KR</Ctry>
+          <AdrLine>Seoul Mapo-gu 22</AdrLine>
+        </PstlAdr>
+      </Cdtr>
+      <CdtrAcct>
+        <Id>
+          <IBAN>KR120810000012345678901</IBAN>
+        </Id>
+      </CdtrAcct>
+      <RmtInf>
+        <Ustrd>Invoice 2026-0001</Ustrd>
+      </RmtInf>
+    </CdtTrfTxInf>
+    <CdtTrfTxInf>
+      <PmtId>
+        <InstrId>INST-0002</InstrId>
+        <EndToEndId>E2E-0002</EndToEndId>
+        <TxId>TX-0002</TxId>
+      </PmtId>
+      <IntrBkSttlmAmt Ccy="KRW">78000</IntrBkSttlmAmt>
+      <CdtrAcct>
+        <Id>
+          <IBAN>KR120810000087654321001</IBAN>
+        </Id>
+      </CdtrAcct>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>`;
+
+const jsonSample = `{
+  "Document": {
+    "FIToFICstmrCdtTrf": {
+      "GrpHdr": {
+        "MsgId": "ELINK-20260521-0001",
+        "CreDtTm": "2026-05-21T10:15:30+09:00",
+        "NbOfTxs": "2",
+        "SttlmInf": {
+          "SttlmMtd": "CLRG",
+          "ClrSys": { "Cd": "KFTC" }
+        }
+      },
+      "CdtTrfTxInf": [
+        {
+          "PmtId": {
+            "InstrId": "INST-0001",
+            "EndToEndId": "E2E-0001",
+            "TxId": "TX-0001"
+          },
+          "IntrBkSttlmAmt": { "@Ccy": "KRW", "#text": "125000" },
+          "Dbtr": {
+            "Nm": "HANA TRADING",
+            "PstlAdr": {
+              "Ctry": "KR",
+              "AdrLine": "Seoul Jung-gu 10"
+            }
+          },
+          "CdtrAgt": {
+            "FinInstnId": {
+              "BICFI": "KOEXKRSE",
+              "ClrSysMmbId": { "MmbId": "081" }
+            }
+          },
+          "CdtrAcct": {
+            "Id": { "IBAN": "KR120810000012345678901" }
+          },
+          "RmtInf": { "Ustrd": "Invoice 2026-0001" }
+        },
+        {
+          "PmtId": {
+            "InstrId": "INST-0002",
+            "EndToEndId": "E2E-0002",
+            "TxId": "TX-0002"
+          },
+          "IntrBkSttlmAmt": { "@Ccy": "KRW", "#text": "78000" },
+          "CdtrAcct": {
+            "Id": { "IBAN": "KR120810000087654321001" }
+          }
+        }
+      ]
+    }
+  }
+}
+
+Generated XML target:
+<Document><FIToFICstmrCdtTrf><GrpHdr>...</GrpHdr><CdtTrfTxInf>...</CdtTrfTxInf></FIToFICstmrCdtTrf></Document>`;
+
+function receiveStep(node, depth, sibling, path, oldCost, newCost) {
+  const oldParts = path.split(".").map((part) => part.replace(/\[[0-9]+\]/g, ""));
+  const parent = path.includes(".") ? path.slice(0, path.lastIndexOf(".")) : "Order";
+  return {
+    kind: "receive",
+    node,
+    depth,
+    sibling,
+    oldPath: "/" + path.replace(/\./g, "/").replace(/\[[0-9]+\]/g, ""),
+    newPath: path,
+    oldCost,
+    newCost,
+    oldFormula: `child.getUniquePath()가 ${depth + 1}개 ancestor를 따라 올라간 뒤 denomalizeXPath()를 수행`,
+    newFormula: `이미 전달받은 parentPath ${parent}에 ${node}[${sibling}]만 append`,
+    oldChips: ["child", ...oldParts.reverse(), "normalize"],
+    newChips: ["parentPath", `${node}[${sibling}]`, "getOrCreateItem"],
+  };
+}
+
+const receiveSteps = [
+  receiveStep("FIToFICstmrCdtTrf", 1, 0, "Document.FIToFICstmrCdtTrf[0]", 9, 2),
+  receiveStep("GrpHdr", 2, 0, "Document.FIToFICstmrCdtTrf[0].GrpHdr[0]", 13, 2),
+  receiveStep("MsgId", 3, 0, "Document.FIToFICstmrCdtTrf[0].GrpHdr[0].MsgId[0]", 18, 2),
+  receiveStep("SttlmInf", 3, 0, "Document.FIToFICstmrCdtTrf[0].GrpHdr[0].SttlmInf[0]", 18, 2),
+  receiveStep("ClrSys", 4, 0, "Document.FIToFICstmrCdtTrf[0].GrpHdr[0].SttlmInf[0].ClrSys[0]", 24, 2),
+  receiveStep("Cd", 5, 0, "Document.FIToFICstmrCdtTrf[0].GrpHdr[0].SttlmInf[0].ClrSys[0].Cd[0]", 30, 2),
+  receiveStep("CdtTrfTxInf", 2, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0]", 15, 2),
+  receiveStep("PmtId", 3, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].PmtId[0]", 20, 2),
+  receiveStep("EndToEndId", 4, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].PmtId[0].EndToEndId[0]", 27, 2),
+  receiveStep("Dbtr", 3, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].Dbtr[0]", 20, 2),
+  receiveStep("PstlAdr", 4, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].Dbtr[0].PstlAdr[0]", 27, 2),
+  receiveStep("AdrLine", 5, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].Dbtr[0].PstlAdr[0].AdrLine[0]", 34, 2),
+  receiveStep("CdtrAgt", 3, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].CdtrAgt[0]", 20, 2),
+  receiveStep("FinInstnId", 4, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].CdtrAgt[0].FinInstnId[0]", 27, 2),
+  receiveStep("ClrSysMmbId", 5, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].CdtrAgt[0].FinInstnId[0].ClrSysMmbId[0]", 35, 2),
+  receiveStep("MmbId", 6, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].CdtrAgt[0].FinInstnId[0].ClrSysMmbId[0].MmbId[0]", 43, 2),
+  receiveStep("CdtrAcct", 3, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].CdtrAcct[0]", 20, 2),
+  receiveStep("Id", 4, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].CdtrAcct[0].Id[0]", 27, 2),
+  receiveStep("IBAN", 5, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[0].CdtrAcct[0].Id[0].IBAN[0]", 34, 2),
+  receiveStep("CdtTrfTxInf", 2, 1, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[1]", 16, 2),
+  receiveStep("PmtId", 3, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[1].PmtId[0]", 21, 2),
+  receiveStep("TxId", 4, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[1].PmtId[0].TxId[0]", 28, 2),
+  receiveStep("CdtrAcct", 3, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[1].CdtrAcct[0]", 21, 2),
+  receiveStep("IBAN", 5, 0, "Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[1].CdtrAcct[0].Id[0].IBAN[0]", 35, 2),
+];
+
+function sendStep(stage, repeat, oldCost, newCost, oldText, newText, oldChips, newChips) {
+  return {
+    kind: "send",
+    node: stage,
+    depth: 58,
+    sibling: repeat,
+    oldPath: oldText,
+    newPath: newText,
+    oldCost,
+    newCost,
+    oldFormula: oldText,
+    newFormula: newText,
+    oldChips,
+    newChips,
+  };
+}
+
+const sendSteps = [
+  sendStep(
+    "JSON parse",
+    0,
+    28,
+    28,
+    "JSONMessage가 입력 JSON을 읽고 item value를 채움",
+    "동일 경로, 변경 없음",
+    ["parse", "walk JSON", "set item"],
+    ["parse", "walk JSON", "set item"]
+  ),
+  sendStep(
+    "XML DOM build",
+    0,
+    58,
+    58,
+    "XMLMessage.makeXmlLogString(false)가 XML Element tree를 생성",
+    "동일 경로, 변경 없음",
+    ["item tree", "create element", "set text"],
+    ["item tree", "create element", "set text"]
+  ),
+  sendStep(
+    "Result getData",
+    1,
+    110,
+    110,
+    "root.asXML()이 XML 전체 문자열을 직렬화",
+    "첫 호출은 root.asXML() 수행 후 xmlString에 저장",
+    ["Document", "FIToFICstmrCdtTrf", "GrpHdr", "CdtTrfTxInf x2", "asXML"],
+    ["Document", "FIToFICstmrCdtTrf", "GrpHdr", "CdtTrfTxInf x2", "cache store"]
+  ),
+  sendStep(
+    "Memory log getData",
+    2,
+    110,
+    1,
+    "동일 XML을 다시 root.asXML()로 전체 직렬화",
+    "xmlString이 있으므로 문자열 참조 반환",
+    ["Document", "FIToFICstmrCdtTrf", "GrpHdr", "CdtTrfTxInf x2", "asXML again"],
+    ["xmlString", "cache hit"]
+  ),
+  sendStep(
+    "toString getData",
+    3,
+    110,
+    1,
+    "디버그 문자열 생성 중 다시 root.asXML() 수행",
+    "xmlString cache hit로 XML 재직렬화 생략",
+    ["Document", "FIToFICstmrCdtTrf", "GrpHdr", "CdtTrfTxInf x2", "asXML again"],
+    ["xmlString", "cache hit"]
+  ),
+];
+
+const modes = {
+  receive: {
+    steps: receiveSteps,
+    sample: xmlSample,
+    sampleHeading: "ISO20022 스타일 수신 XML",
+    sampleBadge: "수신 입력",
+    modeBadge: "수신: getUniquePath 제거",
+    visualBadge: "전체 XPath 재계산 제거",
+    oldLaneBadge: "getUniquePath per node",
+    newLaneBadge: "parentPath + sibling index",
+    patchBadge: "XMLMessage / UXMLMessage",
+    flow: [
+      ["외부 XML 수신", "dom4j Element 트리를 순회합니다."],
+      ["XPath 계산", "기존은 노드마다 전체 경로를 다시 계산합니다."],
+      ["Layout Item 저장", "개선은 부모 경로와 형제 index를 재사용합니다."]
+    ],
+    patchNote: `수신 패치의 핵심은 노드마다 child.getUniquePath()를 호출하지 않는 것입니다. 기존 방식은 FIToFICstmrCdtTrf, CdtTrfTxInf, CdtrAcct, IBAN 같은 깊은 노드에서 root까지의 경로를 다시 걷고, 그 결과를 denomalizeXPath()로 다시 바꿨습니다. 개선 방식은 재귀 호출 때 parentPath를 넘기고, 같은 부모 아래 childName별 index만 증가시켜 Document.FIToFICstmrCdtTrf[0].CdtTrfTxInf[1].CdtrAcct[0].Id[0].IBAN[0] 같은 item path를 바로 만듭니다.`
+  },
+  send: {
+    steps: sendSteps,
+    sample: jsonSample,
+    sampleHeading: "ISO20022 스타일 송신 JSON",
+    sampleBadge: "송신 입력",
+    modeBadge: "송신: XML 문자열 cache",
+    visualBadge: "반복 asXML 직렬화 방지",
+    oldLaneBadge: "asXML repeated",
+    newLaneBadge: "xmlString cache hit",
+    patchBadge: "XMLMessage / UXMLMessage",
+    flow: [
+      ["내부 JSON 값 송신", "JSON 값이 Layout item에 채워집니다."],
+      ["XML 생성", "XML target message가 Element tree를 만듭니다."],
+      ["결과 문자열 반환", "개선은 첫 직렬화 결과를 xmlString으로 재사용합니다."]
+    ],
+    patchNote: `송신 패치의 핵심은 JSON 파싱 자체를 바꾸는 것이 아닙니다. JSON -> XML 변환 후 결과 처리, 메모리 로그, toString 같은 후속 단계에서 getData()가 여러 번 호출되면 기존 방식은 root.asXML()을 매번 다시 실행했습니다. 개선 방식은 첫 XML 문자열을 xmlString에 저장하고 composeData() 또는 setData()로 메시지가 바뀔 때만 cache를 비웁니다.`
+  }
+};
+
+const $ = (id) => document.getElementById(id);
+
+let mode = "receive";
+let index = -1;
+let timer = null;
+
+function totalCost(steps, key) {
+  return steps.reduce((sum, step) => sum + step[key], 0);
+}
+
+function costUntil(steps, key, activeIndex) {
+  if (activeIndex < 0) return 0;
+  return steps.slice(0, activeIndex + 1).reduce((sum, step) => sum + step[key], 0);
+}
+
+function renderRows() {
+  const steps = modes[mode].steps;
+  $("oldRows").innerHTML = "";
+  $("newRows").innerHTML = "";
+
+  steps.forEach((step, i) => {
+    $("oldRows").appendChild(row("old", i, step.node, step.oldPath, step.oldCost));
+    $("newRows").appendChild(row("new", i, step.node, step.newPath, step.newCost));
+  });
+}
+
+function row(type, i, name, path, cost) {
+  const el = document.createElement("div");
+  el.className = `row ${type}`;
+  el.dataset.index = i;
+  el.innerHTML = `
+    <div class="idx">${i + 1}</div>
+    <div>
+      <div><b>${escapeHtml(name)}</b></div>
+      <div class="path">${escapeHtml(path)}</div>
+    </div>
+    <div class="cost">${cost}</div>
+  `;
+  return el;
+}
+
+function renderMode() {
+  const config = modes[mode];
+  $("sampleText").textContent = config.sample;
+  $("sampleHeading").textContent = config.sampleHeading;
+  $("sampleBadge").textContent = config.sampleBadge;
+  $("modeBadge").textContent = config.modeBadge;
+  $("visualBadge").textContent = config.visualBadge;
+  $("oldLaneBadge").textContent = config.oldLaneBadge;
+  $("newLaneBadge").textContent = config.newLaneBadge;
+  $("patchBadge").textContent = config.patchBadge;
+  $("patchNote").textContent = config.patchNote;
+  $("flowA").textContent = config.flow[0][0];
+  $("flowAText").textContent = config.flow[0][1];
+  $("flowB").textContent = config.flow[1][0];
+  $("flowBText").textContent = config.flow[1][1];
+  $("flowC").textContent = config.flow[2][0];
+  $("flowCText").textContent = config.flow[2][1];
+  $("modeReceive").classList.toggle("active", mode === "receive");
+  $("modeSend").classList.toggle("active", mode === "send");
+  $("modeBadge").className = `badge ${mode === "receive" ? "recv" : "send"}`;
+  $("sampleBadge").className = `badge ${mode === "receive" ? "recv" : "send"}`;
+  $("patchBadge").className = `badge ${mode === "receive" ? "recv" : "send"}`;
+  renderRows();
+  reset(false);
+}
+
+function renderStep() {
+  const steps = modes[mode].steps;
+  const step = steps[index] || null;
+  document.querySelectorAll(".row").forEach((el) => {
+    el.classList.toggle("active", Number(el.dataset.index) === index);
+  });
+
+  const oldTotal = totalCost(steps, "oldCost");
+  const newTotal = totalCost(steps, "newCost");
+  const oldNow = costUntil(steps, "oldCost", index);
+  const newNow = costUntil(steps, "newCost", index);
+  const savedNow = Math.max(0, oldNow - newNow);
+  const savedTotal = Math.max(1, oldTotal - newTotal);
+
+  $("oldCost").textContent = oldNow;
+  $("newCost").textContent = newNow;
+  $("savedCost").textContent = savedNow;
+  $("oldMeter").style.width = `${Math.min(100, oldNow / oldTotal * 100)}%`;
+  $("newMeter").style.width = `${Math.min(100, newNow / newTotal * 100)}%`;
+  $("savedMeter").style.width = `${Math.min(100, savedNow / savedTotal * 100)}%`;
+  $("progressBar").style.width = `${steps.length ? Math.max(0, index + 1) / steps.length * 100 : 0}%`;
+  $("progressText").textContent = `${Math.max(0, index + 1)} / ${steps.length}`;
+
+  if (!step) {
+    $("currentName").textContent = "-";
+    $("currentDepth").textContent = "-";
+    $("currentIndex").textContent = "-";
+    $("currentSaved").textContent = "-";
+    $("oldFormula").innerHTML = "Play를 누르면 단계별 연산이 누적됩니다.";
+    $("newFormula").innerHTML = "개선 방식은 같은 샘플 데이터에서 어떤 계산을 생략하는지 표시합니다.";
+    $("stageBadge").textContent = "대기";
+    $("oldChips").innerHTML = "";
+    $("newChips").innerHTML = "";
+    return;
+  }
+
+  $("currentName").textContent = step.node;
+  $("currentDepth").textContent = step.depth;
+  $("currentIndex").textContent = step.sibling;
+  $("currentSaved").textContent = Math.max(0, step.oldCost - step.newCost);
+  $("oldFormula").innerHTML = escapeHtml(step.oldFormula);
+  $("newFormula").innerHTML = escapeHtml(step.newFormula);
+  $("stageBadge").textContent = mode === "receive" ? "수신 처리 중" : "송신 처리 중";
+  renderChips("oldChips", step.oldChips, "old");
+  renderChips("newChips", step.newChips, "new");
+}
+
+function renderChips(target, chips, type) {
+  const box = $(target);
+  box.innerHTML = "";
+  chips.forEach((text, i) => {
+    const chip = document.createElement("span");
+    chip.className = `chip ${type} flash`;
+    chip.style.animationDelay = `${i * 55}ms`;
+    chip.textContent = text;
+    box.appendChild(chip);
+  });
+}
+
+function advance() {
+  const steps = modes[mode].steps;
+  if (index >= steps.length - 1) {
+    stop();
+    return;
+  }
+  index += 1;
+  renderStep();
+}
+
+function play() {
+  if (timer) {
+    stop();
+    return;
+  }
+  $("play").textContent = "Pause";
+  if (index >= modes[mode].steps.length - 1) {
+    index = -1;
+    renderStep();
+  }
+  advance();
+  timer = setInterval(advance, 820);
+}
+
+function stop() {
+  if (timer) clearInterval(timer);
+  timer = null;
+  $("play").textContent = "Play";
+}
+
+function reset(shouldStop = true) {
+  if (shouldStop) stop();
+  index = -1;
+  renderStep();
+}
+
+function switchMode(nextMode) {
+  if (mode === nextMode) return;
+  stop();
+  mode = nextMode;
+  renderMode();
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+$("modeReceive").addEventListener("click", () => switchMode("receive"));
+$("modeSend").addEventListener("click", () => switchMode("send"));
+$("play").addEventListener("click", play);
+$("step").addEventListener("click", () => {
+  stop();
+  if (index >= modes[mode].steps.length - 1) index = -1;
+  advance();
+});
+$("reset").addEventListener("click", () => reset(true));
+
+renderMode();
+</script>
+</body>
+</html>
