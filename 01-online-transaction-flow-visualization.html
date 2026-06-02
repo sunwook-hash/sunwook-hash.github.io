@@ -1,0 +1,3961 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>온라인 전문 처리 판정 지도</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #151b29;
+      --muted: #667085;
+      --line: #d7deea;
+      --line-strong: #b8c2d4;
+      --call: #2563eb;
+      --queue: #8a5a00;
+      --topic: #7c3aed;
+      --pass: #0f766e;
+      --block: #b42318;
+      --soft-call: #eaf1ff;
+      --soft-queue: #fff3d8;
+      --soft-topic: #f1eaff;
+      --soft-pass: #e7f7f4;
+      --soft-block: #fee9e7;
+      --soft-gray: #f1f4f9;
+      --shadow: 0 10px 26px rgba(20, 31, 54, .08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 12px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 390px;
+      grid-template-areas:
+        "top top top"
+        "timeline main side"
+        "meta meta meta";
+      gap: 12px;
+      align-items: start;
+    }
+
+    .topbar {
+      grid-area: top;
+      display: block;
+      min-width: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .headline {
+      padding: 15px 16px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 21px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+      word-break: keep-all;
+    }
+
+    .tabs {
+      padding: 6px;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(150px, 1fr));
+      gap: 6px;
+      align-content: start;
+      overflow-x: auto;
+      scrollbar-gutter: stable;
+    }
+
+    .scenario-button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      padding: 6px 9px;
+      min-height: 34px;
+      min-width: 150px;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+
+    .scenario-button:hover {
+      border-color: var(--line-strong);
+      transform: translateY(-1px);
+    }
+
+    .scenario-button.is-active {
+      border-color: var(--call);
+      box-shadow: inset 0 0 0 1px var(--call), 0 8px 18px rgba(37, 99, 235, .10);
+    }
+
+    .scenario-button[data-kind="queue"].is-active {
+      border-color: var(--queue);
+      box-shadow: inset 0 0 0 1px var(--queue), 0 8px 18px rgba(138, 90, 0, .10);
+    }
+
+    .scenario-button[data-kind="topic"].is-active {
+      border-color: var(--topic);
+      box-shadow: inset 0 0 0 1px var(--topic), 0 8px 18px rgba(124, 58, 237, .10);
+    }
+
+    .scenario-button[data-kind="block"].is-active {
+      border-color: var(--block);
+      box-shadow: inset 0 0 0 1px var(--block), 0 8px 18px rgba(180, 35, 24, .10);
+    }
+
+    .scenario-title {
+      display: block;
+      font-weight: 800;
+      line-height: 1.15;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .main {
+      grid-area: main;
+      display: grid;
+      gap: 12px;
+      min-width: 0;
+      align-content: start;
+    }
+
+    .side {
+      grid-area: side;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .side > .panel {
+      height: 980px;
+      overflow: hidden;
+    }
+
+    .left-layer {
+      grid-area: timeline;
+      min-width: 0;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .section-title small {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .title-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .flow-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .control-button {
+      width: 30px;
+      height: 30px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: #f6f8fc;
+      color: #1f2937;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .control-button:hover,
+    .control-button.is-active {
+      border-color: var(--call);
+      background: var(--soft-call);
+      color: var(--call);
+    }
+
+    .speed-select {
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 0 6px;
+    }
+
+    .step-progress {
+      width: 82px;
+      height: 6px;
+      border-radius: 999px;
+      background: #e6eaf2;
+      overflow: hidden;
+    }
+
+    .step-progress span {
+      display: block;
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--call);
+      transition: width .28s ease;
+    }
+
+    .journey {
+      height: 980px;
+      overflow: hidden;
+    }
+
+    .journey > .section-title {
+      min-height: 36px;
+      padding: 5px 10px;
+      gap: 8px;
+    }
+
+    .journey > .section-title > span {
+      white-space: nowrap;
+    }
+
+    .journey .section-title small {
+      max-width: 380px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .journey .title-actions {
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+
+    .journey .flow-controls {
+      gap: 4px;
+      padding: 2px;
+      border-radius: 6px;
+    }
+
+    .journey .control-button {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
+      font-size: 12px;
+    }
+
+    .journey .speed-select {
+      height: 24px;
+      font-size: 11px;
+      padding: 0 4px;
+    }
+
+    .journey .step-progress {
+      width: 62px;
+      height: 4px;
+    }
+
+    .journey-body {
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+      height: calc(100% - 36px);
+      grid-template-rows: 34px minmax(0, 1fr);
+    }
+
+    .message-card {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 10px;
+      min-height: 0;
+      overflow: auto;
+      align-content: start;
+    }
+
+    .raw-box,
+    .judgement-box {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fbfcff;
+      padding: 0;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .raw-box summary,
+    .judgement-box summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 10px 12px;
+      margin: 0;
+      min-height: 44px;
+    }
+
+    .raw-box summary::-webkit-details-marker,
+    .judgement-box summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .raw-box summary::after,
+    .judgement-box summary::after {
+      content: "펼치기";
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 3px 7px;
+      white-space: nowrap;
+    }
+
+    .raw-box[open] summary::after,
+    .judgement-box[open] summary::after {
+      content: "접기";
+    }
+
+    .raw-box > .kv,
+    .judgement-box > .kv {
+      margin: 0 12px 12px;
+      max-height: 180px;
+      overflow: auto;
+    }
+
+    .judgement-box > .kv {
+      max-height: 220px;
+    }
+
+    .judgement-box > .fqcn-panel {
+      margin: 0 12px 12px;
+    }
+
+    .mini-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: none;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--soft-gray);
+      border: 1px solid var(--line);
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .pill.call {
+      background: var(--soft-call);
+      border-color: #bad0ff;
+      color: #1d4ed8;
+    }
+
+    .pill.queue {
+      background: var(--soft-queue);
+      border-color: #f2c767;
+      color: #7a4a00;
+    }
+
+    .pill.topic {
+      background: var(--soft-topic);
+      border-color: #d8c2ff;
+      color: #6d28d9;
+    }
+
+    .pill.pass {
+      background: var(--soft-pass);
+      border-color: #a9ddd3;
+      color: #0f766e;
+    }
+
+    .pill.block {
+      background: var(--soft-block);
+      border-color: #f5b1aa;
+      color: #b42318;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: minmax(108px, .42fr) minmax(0, .58fr);
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .kv div {
+      min-width: 0;
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--line);
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .kv div:nth-last-child(-n + 2) {
+      border-bottom: 0;
+    }
+
+    .kv .k {
+      background: #f6f8fc;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .kv .v {
+      font-family: "Cascadia Mono", Consolas, "Malgun Gothic", monospace;
+      font-size: 12px;
+      color: #1f2937;
+    }
+
+    .payload-panel {
+      margin-top: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      overflow: hidden;
+      height: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .payload-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f6f8fc;
+    }
+
+    .payload-head strong {
+      font-size: 13px;
+      line-height: 1.25;
+    }
+
+    .payload-body {
+      padding: 8px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .payload-summary {
+      margin: 0;
+      color: #344054;
+      flex: 0 0 16px;
+      height: 16px;
+      max-height: 16px;
+      font-size: 11px;
+      line-height: 16px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .fqcn-panel {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fbfcff;
+      padding: 9px;
+      display: grid;
+      gap: 7px;
+    }
+
+    .fqcn-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .fqcn-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 106px;
+      overflow: auto;
+    }
+
+    .fqcn-list code {
+      border: 1px solid #c9d3e4;
+      border-radius: 6px;
+      background: #fff;
+      color: #1f2937;
+      padding: 5px 7px;
+      font-family: "Cascadia Mono", Consolas, "Malgun Gothic", monospace;
+      font-size: 11px;
+      line-height: 1.25;
+      word-break: break-all;
+    }
+
+    .payload-code-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr);
+      gap: 10px;
+      height: 100%;
+      min-height: 0;
+      flex: 1 1 0;
+    }
+
+    .payload-code {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+      background: #101828;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .payload-label {
+      flex: 0 0 auto;
+      padding: 8px 10px;
+      background: #202b40;
+      color: #edf2ff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .payload-code pre {
+      margin: 0;
+      flex: 1 1 0;
+      height: 100%;
+      min-height: 0;
+      max-height: none;
+      overflow: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #536176 #101828;
+      padding: 12px;
+      color: #edf2ff;
+      font-family: "Cascadia Mono", Consolas, "Malgun Gothic", monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .payload-code pre::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    .payload-code pre::-webkit-scrollbar-track {
+      background: #101828;
+    }
+
+    .payload-code pre::-webkit-scrollbar-thumb {
+      border: 2px solid #101828;
+      border-radius: 999px;
+      background: #536176;
+    }
+
+    .payload-code pre::-webkit-scrollbar-thumb:hover {
+      background: #748198;
+    }
+
+    .payload-code pre::-webkit-scrollbar-corner {
+      background: #101828;
+    }
+
+    .mapping-list {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 5px;
+      max-height: 86px;
+      overflow: auto;
+      flex: 0 0 auto;
+    }
+
+    .mapping-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+      color: #344054;
+      font-size: 11px;
+      line-height: 1.3;
+    }
+
+    .mapping-row code {
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fbfcff;
+      padding: 5px 6px;
+      font-family: "Cascadia Mono", Consolas, "Malgun Gothic", monospace;
+      word-break: break-word;
+    }
+
+    .mapping-row span {
+      color: var(--muted);
+      text-align: center;
+      font-weight: 900;
+    }
+
+    .route-rail {
+      position: relative;
+      display: block;
+      min-height: 34px;
+      padding: 2px 6px;
+    }
+
+    .rail-line {
+      display: none;
+      position: absolute;
+      left: 7%;
+      right: 7%;
+      top: 20px;
+      height: 2px;
+      background: linear-gradient(90deg, #aeb8ca, #7ea1f7, #c2a3ff);
+      border-radius: 999px;
+    }
+
+    .packet {
+      position: absolute;
+      top: 5px;
+      left: 7%;
+      transform: translateX(-50%);
+      min-width: 40px;
+      height: 22px;
+      border-radius: 6px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: #101828;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+      box-shadow: 0 8px 18px rgba(16, 24, 40, .22);
+      transition: left .35s ease, background .25s ease;
+      z-index: 4;
+    }
+
+    .packet::after {
+      content: "";
+      position: absolute;
+      bottom: -4px;
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 4px solid currentColor;
+      color: #101828;
+    }
+
+    .packet.is-playing {
+      animation: packetPulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes packetPulse {
+      0% {
+        box-shadow: 0 8px 18px rgba(16, 24, 40, .20);
+      }
+      50% {
+        box-shadow: 0 10px 24px rgba(37, 99, 235, .34);
+      }
+      100% {
+        box-shadow: 0 8px 18px rgba(16, 24, 40, .20);
+      }
+    }
+
+    .stage-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(8, minmax(68px, 1fr));
+      gap: 4px;
+      z-index: 2;
+      padding-top: 0;
+    }
+
+    .stage {
+      min-height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 5px;
+      text-align: center;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .stage:hover:not(:disabled) {
+      border-color: var(--line-strong);
+      background: #fbfdff;
+    }
+
+    .stage:disabled {
+      cursor: not-allowed;
+      opacity: .48;
+    }
+
+    .stage strong {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      line-height: 1.1;
+    }
+
+    .stage span {
+      display: none;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.15;
+    }
+
+    .stage.is-current {
+      border-color: var(--call);
+      background: var(--soft-call);
+      box-shadow: inset 0 0 0 1px var(--call);
+    }
+
+    .stage.is-stop {
+      border-color: var(--block);
+      background: var(--soft-block);
+      box-shadow: inset 0 0 0 1px var(--block);
+    }
+
+    .timeline-panel {
+      height: 980px;
+      overflow: hidden;
+    }
+
+    .timeline {
+      list-style: none;
+      margin: 0;
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      height: calc(100% - 48px);
+      overflow: auto;
+      align-content: start;
+    }
+
+    .step-button {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      text-align: left;
+      padding: 10px;
+      cursor: pointer;
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: center;
+      transition: border-color .18s ease, background .18s ease;
+      min-height: 78px;
+    }
+
+    .step-button:hover,
+    .step-button.is-selected {
+      border-color: var(--call);
+      background: #fbfdff;
+    }
+
+    .step-button.is-stop,
+    .step-button.is-stop.is-selected {
+      border-color: #f5b1aa;
+      background: #fffafa;
+    }
+
+    .step-number {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: var(--soft-gray);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 900;
+      color: #475467;
+    }
+
+    .step-button.is-selected .step-number {
+      background: var(--soft-call);
+      color: #1d4ed8;
+    }
+
+    .step-button.is-stop .step-number {
+      background: var(--soft-block);
+      color: var(--block);
+    }
+
+    .step-main {
+      min-width: 0;
+    }
+
+    .step-main strong {
+      display: block;
+      line-height: 1.25;
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    .step-main span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      word-break: keep-all;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 58px;
+      min-height: 24px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .status.pass {
+      color: var(--pass);
+      border-color: #a9ddd3;
+      background: var(--soft-pass);
+    }
+
+    .status.call {
+      color: var(--call);
+      border-color: #bad0ff;
+      background: var(--soft-call);
+    }
+
+    .status.queue {
+      color: var(--queue);
+      border-color: #f2c767;
+      background: var(--soft-queue);
+    }
+
+    .status.topic {
+      color: var(--topic);
+      border-color: #d8c2ff;
+      background: var(--soft-topic);
+    }
+
+    .status.block {
+      color: var(--block);
+      border-color: #f5b1aa;
+      background: var(--soft-block);
+    }
+
+    .formula-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(280px, .95fr);
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .formula-panel {
+      min-height: 320px;
+    }
+
+    .formula-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+      display: table;
+      background: #fff;
+      font-size: 12px;
+    }
+
+    .formula-table th,
+    .formula-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.4;
+    }
+
+    .formula-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .formula-table th {
+      background: #f6f8fc;
+      color: #475467;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .formula-table tr.is-hit {
+      background: #fbfdff;
+      box-shadow: inset 3px 0 0 var(--call);
+    }
+
+    .formula-table tr.is-hit.queue {
+      box-shadow: inset 3px 0 0 var(--queue);
+    }
+
+    .formula-table tr.is-hit.topic {
+      box-shadow: inset 3px 0 0 var(--topic);
+    }
+
+    .formula-table tr.is-hit.block {
+      box-shadow: inset 3px 0 0 var(--block);
+    }
+
+    .outcome-box {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+      background: #fff;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .outcome-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 900;
+    }
+
+    .outcome-text {
+      margin: 0;
+      color: #344054;
+      line-height: 1.55;
+      word-break: keep-all;
+    }
+
+    .detail-body {
+      padding: 12px 14px 14px;
+      display: grid;
+      gap: 10px;
+      height: 278px;
+      overflow: auto;
+      align-content: start;
+    }
+
+    .detail-title {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .detail-text {
+      margin: 0;
+      color: #344054;
+      line-height: 1.55;
+      word-break: keep-all;
+    }
+
+    .codebox {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #101828;
+      color: #edf2ff;
+      padding: 10px;
+      font-family: "Cascadia Mono", Consolas, "Malgun Gothic", monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      overflow: auto;
+      white-space: pre-wrap;
+      max-height: 92px;
+    }
+
+    .data-box {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fbfcff;
+      padding: 10px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .data-box strong {
+      font-size: 12px;
+      color: #475467;
+    }
+
+    .data-box p {
+      margin: 0;
+      line-height: 1.45;
+      color: #344054;
+      word-break: keep-all;
+    }
+
+    .envelope-list {
+      padding: 10px;
+      display: grid;
+      gap: 10px;
+      height: 932px;
+      overflow: auto;
+      align-content: start;
+    }
+
+    .object-card {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .object-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 9px;
+      background: #f6f8fc;
+      border-bottom: 1px solid var(--line);
+      font-weight: 900;
+      font-size: 12px;
+    }
+
+    .object-note {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .object-body {
+      display: grid;
+      grid-template-columns: minmax(116px, .43fr) minmax(0, .57fr);
+    }
+
+    .object-body div {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--line);
+      line-height: 1.32;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .object-body div:nth-last-child(-n + 2) {
+      border-bottom: 0;
+    }
+
+    .field-k {
+      background: #fbfcff;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .field-v {
+      font-family: "Cascadia Mono", Consolas, "Malgun Gothic", monospace;
+      font-size: 12px;
+    }
+
+    .field-v.is-highlight,
+    .field-k.is-highlight {
+      background: #fff7df;
+    }
+
+    .meta-panel {
+      grid-area: meta;
+    }
+
+    .meta-grid {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .meta-card {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .meta-card strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+
+    .meta-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      word-break: keep-all;
+    }
+
+    @media (max-width: 1180px) {
+      .shell {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "top"
+          "timeline"
+          "main"
+          "side"
+          "meta";
+      }
+
+      .side {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .timeline-panel,
+      .journey,
+      .side > .panel {
+        height: auto;
+      }
+
+      .journey-body {
+        height: auto;
+        grid-template-rows: auto auto;
+      }
+
+      .payload-panel {
+        height: 100%;
+        min-height: 520px;
+      }
+
+      .payload-code pre {
+        height: 100%;
+        min-height: 0;
+        max-height: none;
+      }
+
+      .timeline {
+        height: 420px;
+      }
+
+      .envelope-list {
+        height: 520px;
+      }
+
+      .detail-body {
+        height: 320px;
+      }
+
+      .meta-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        padding: 8px;
+      }
+
+      .message-card,
+      .payload-code-grid,
+      .formula-grid,
+      .side {
+        grid-template-columns: 1fr;
+      }
+
+      .title-actions {
+        justify-content: flex-start;
+      }
+
+      .journey > .section-title {
+        align-items: center;
+      }
+
+      .journey .section-title small {
+        display: none;
+      }
+
+      .route-rail {
+        display: block;
+        min-height: auto;
+        padding: 4px 0;
+      }
+
+      .stage-row {
+        grid-row: auto;
+        grid-template-columns: repeat(4, minmax(70px, 1fr));
+        padding-top: 0;
+      }
+
+      .rail-line,
+      .packet {
+        display: none;
+      }
+
+      .step-button {
+        grid-template-columns: 32px minmax(0, 1fr);
+      }
+
+      .step-button .status {
+        grid-column: 2;
+        justify-self: start;
+      }
+
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="shell">
+      <section class="topbar">
+        <div class="panel tabs" id="scenarioTabs" role="tablist" aria-label="전문 처리 시나리오"></div>
+      </section>
+
+      <aside class="left-layer">
+        <section class="panel timeline-panel">
+          <div class="section-title">
+            <span>판정 타임라인</span>
+          </div>
+          <ol class="timeline" id="timeline"></ol>
+        </section>
+      </aside>
+
+      <main class="main">
+        <section class="panel journey">
+          <div class="section-title">
+            <span>핵심 데이터 및 전문 변화</span>
+            <div class="title-actions">
+              <small id="scenarioHint">예시값은 코드 분기를 설명하기 위한 거래 샘플입니다.</small>
+              <div class="flow-controls" aria-label="단계 자동 재생 컨트롤">
+                <button class="control-button" id="restartBtn" type="button" title="처음 단계로 이동" aria-label="처음 단계로 이동">↺</button>
+                <button class="control-button" id="playPauseBtn" type="button" title="자동 재생" aria-label="자동 재생">▶</button>
+                <button class="control-button" id="nextStepBtn" type="button" title="다음 단계" aria-label="다음 단계">›</button>
+                <select class="speed-select" id="speedSelect" aria-label="자동 재생 속도">
+                  <option value="2400">0.75x</option>
+                  <option value="1800" selected>1x</option>
+                  <option value="1100">1.5x</option>
+                  <option value="700">2x</option>
+                </select>
+                <div class="step-progress" aria-hidden="true"><span id="stepProgress"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="journey-body">
+            <div class="route-rail" aria-label="처리 단계 진행 바">
+              <div class="rail-line"></div>
+              <div class="packet" id="packet">전문</div>
+              <div class="stage-row" id="stageRow"></div>
+            </div>
+
+            <div class="message-card">
+              <details class="raw-box" id="adapterInputDetails">
+                <summary class="mini-title">
+                  <span>Inbound Adapter가 넘긴 값</span>
+                  <span class="pill" id="messageTypePill">IF_STANDARD</span>
+                </summary>
+                <div class="kv" id="inputKv"></div>
+              </details>
+              <details class="judgement-box" id="judgementDetails">
+                <summary class="mini-title">
+                  <span>이번 거래의 핵심 판정</span>
+                  <span class="pill call" id="routePill">ROUT_CALL</span>
+                </summary>
+                <div class="kv" id="judgementKv"></div>
+                <div class="fqcn-panel" id="judgementFqcnPanel"></div>
+              </details>
+              <div class="payload-panel" id="payloadPanel"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel detail-panel">
+          <div class="section-title">
+            <span>선택 단계 상세</span>
+            <small id="detailCode">RequestProcessor</small>
+          </div>
+          <div class="detail-body" id="detailBody"></div>
+        </section>
+
+        <section class="panel formula-panel">
+          <div class="section-title">
+            <span>라우팅/차단 공식</span>
+            <small>`RequestProcessor`와 `FlowRouter` 기준</small>
+          </div>
+          <div class="formula-grid">
+            <table class="formula-table" aria-label="라우팅 타입 판정 공식">
+              <thead>
+                <tr>
+                  <th>조건</th>
+                  <th>결과</th>
+                  <th>다음 코드</th>
+                </tr>
+              </thead>
+              <tbody id="formulaRows"></tbody>
+            </table>
+            <div class="outcome-box">
+              <div class="outcome-title">
+                <span id="outcomeTitle">결과</span>
+                <span class="pill" id="outcomePill">ROUT_CALL</span>
+              </div>
+              <p class="outcome-text" id="outcomeText"></p>
+              <div class="codebox" id="routeCode"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="side">
+        <section class="panel">
+          <div class="section-title">
+            <span>전문 봉투 상태</span>
+            <small>그 시점에 생기거나 바뀌는 값</small>
+          </div>
+          <div class="envelope-list" id="envelopeList"></div>
+        </section>
+      </aside>
+
+      <section class="panel meta-panel">
+        <div class="section-title">
+          <span>읽어야 할 실제 축</span>
+          <small>시나리오와 코드/메타데이터의 연결점</small>
+        </div>
+        <div class="meta-grid" id="metaGrid"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const stages = [
+      ["Adapter", "프로토콜 수신"],
+      ["ProcessVO", "요청 문맥"],
+      ["식별", "표준전문 확정"],
+      ["EAIMessage", "서비스 메타"],
+      ["통제/유량", "차단 여부"],
+      ["Routing", "CALL/QUEUE/TOPIC"],
+      ["Process", "변환/호출"],
+      ["응답", "반환/적재"]
+    ];
+
+    const formula = [
+      {
+        id: "BLOCK_RESTRICT",
+        condition: "거래통제 규칙이 거래 또는 기관을 차단",
+        result: "차단 응답",
+        next: "RestrictInfoManager -> getRestrictedResponse 또는 ExceptionHandler"
+      },
+      {
+        id: "BLOCK_INFLOW",
+        condition: "유량제어 Bucket이 adapterGroup 또는 EAISvcCd를 거부",
+        result: "차단 응답",
+        next: "InflowControlUtil -> getRestrictedResponse 또는 ExceptionHandler"
+      },
+      {
+        id: "ROUT_TOPIC",
+        condition: "svcTsmtUsgTp=SYNC_SVC AND psvItfTp=ASYNC_SVC AND returnType=RECV",
+        result: "ROUT_TOPIC",
+        next: "FlowRouter -> SessionManager.putTopic 또는 topic send"
+      },
+      {
+        id: "ROUT_CALL",
+        condition: "svcTsmtUsgTp=SYNC_SVC 이고 위 Sync-Async 응답 조건이 아님",
+        result: "ROUT_CALL",
+        next: "FlowRouter -> ElinkESBProcessProxy.callElinkESBProcess"
+      },
+      {
+        id: "ROUT_QUEUE",
+        condition: "svcTsmtUsgTp가 SYNC_SVC가 아님",
+        result: "ROUT_QUEUE",
+        next: "FlowRouter -> JMSSender.sendToQueue"
+      }
+    ];
+
+    const metaCards = [
+      {
+        title: "전문 식별",
+        text: "RequestProcessor가 adptrMsgPtrnCd(IF_STANDARD/IF_NONSTANDARD/IF_SUBSTANDARD)를 기준으로 StandardReader, RequestAction, SubMessage mapper 중 하나를 탄다."
+      },
+      {
+        title: "서비스 메타",
+        text: "EAISvcCd로 TSEAIHE01(EAIMessage)과 TSEAIHE02(ServiceMessage)를 찾고 flwCntlRtnNm, outbRtnNm, sync/async 속성을 확정한다."
+      },
+      {
+        title: "통제와 유량",
+        text: "RestrictInfoManager와 InflowControlUtil은 FlowRouter 전에 실행된다. 여기서 막히면 Target 호출이 아니라 제한 응답 또는 예외 처리로 끝난다."
+      },
+      {
+        title: "라우팅",
+        text: "RequestProcessor가 RouteKeys.ROUTING_TYPE을 만들고 FlowRouter가 ROUT_CALL, ROUT_QUEUE, ROUT_TOPIC에 따라 완전히 다른 목적지로 보낸다."
+      },
+      {
+        title: "변환과 응답",
+        text: "DefaultProcess와 프로토콜 Process(HTTPProcess 등)가 TSEAITR01~08, cnvEn, bsRspCnvEn, errRspCnvEn을 사용해 요청/응답 전문을 변환한다."
+      }
+    ];
+
+    const internalIsoJson = `{
+  "stdHeader": {
+    "eaiSvcCd": "IF_PAY_ISO20022",
+    "guid": "G20260602010001",
+    "guidSeq": 1,
+    "sndRcvDvCd": "S",
+    "srcSysCd": "COREBANK",
+    "tgtSysCd": "EXTBANK"
+  },
+  "data": {
+    "Document": {
+      "CstmrCdtTrfInitn": {
+        "GrpHdr": {
+          "MsgId": "PAY202606020001",
+          "CreDtTm": "2026-06-02T10:15:30+09:00",
+          "NbOfTxs": "1",
+          "CtrlSum": 125000.00
+        },
+        "PmtInf": [{
+          "PmtInfId": "PMT-0001",
+          "PmtMtd": "TRF",
+          "Dbtr": { "Nm": "EACTIVE CO" },
+          "DbtrAcct": { "Id": { "Othr": { "Id": "1234567890" } } },
+          "CdtTrfTxInf": [{
+            "PmtId": { "EndToEndId": "E2E202606020001" },
+            "Amt": { "InstdAmt": { "Ccy": "KRW", "value": 125000.00 } },
+            "Cdtr": { "Nm": "ACME SUPPLY" },
+            "CdtrAcct": { "Id": { "Othr": { "Id": "9876543210" } } },
+            "RmtInf": { "Ustrd": "Invoice 2026-0602" }
+          }]
+        }]
+      }
+    }
+  }
+}`;
+
+    const processVoPayload = `ProcessVO {
+  stdMsgTypeCode: "IF_STANDARD",
+  adptrMsgType: "JSON_ISO20022",
+  adapterGroupName: "_APP_IN_HTT_SyS",
+  adapterName: "_APP_IN_HTT_SyS{ALL}",
+  uuid: "001-UUID-10001"
+}
+
+rawMessage.data.Document.CstmrCdtTrfInitn.GrpHdr.MsgId
+  = "PAY202606020001"`;
+
+    const standardMessagePayload = `StandardMessage {
+  header: {
+    EAISvcCd: "IF_PAY_ISO20022",
+    GUID: "G20260602010001",
+    GUID_SEQ: "1",
+    sendRecvDivision: "SEND"
+  },
+  bizDataCharset: "UTF-8",
+  bizData: {
+    Document.CstmrCdtTrfInitn.GrpHdr.MsgId: "PAY202606020001",
+    Document.CstmrCdtTrfInitn.PmtInf[0].Dbtr.Nm: "EACTIVE CO",
+    Document.CstmrCdtTrfInitn.PmtInf[0].CdtTrfTxInf[0].Amt.InstdAmt.value: 125000.00
+  }
+}`;
+
+    const eaiEnvelopePayload = `EAIMessage {
+  EAISvcCd: "IF_PAY_ISO20022",
+  flwCntlRtnNm: "BASEFC",
+  svcTsmtUsgTp: "SYNC_SVC",
+  psvItfTp: "SYNC_SVC",
+  currentSvcMsg: ServiceMessage {
+    outbRtnNm: "HTTPOUT",
+    targetAdapter: "AG_EXTBANK_XML_OUT",
+    cnvEn: "Y",
+    bsRspCnvEn: "Y",
+    errRspCnvEn: "Y"
+  }
+}`;
+
+    const routeEnvelopePayload = `RouteKeys {
+  ROUTING_TYPE: "ROUT_CALL",
+  CALL_TARGET: "BASEFC"
+}
+
+FlowRouter -> BASEFC
+BASEFC -> IFRouter
+IFRouter -> HTTPOUT
+DefaultProcess -> HTTPProcess`;
+
+    const externalIsoXml = `<ExtPayMessage version="1.0">
+  <ExtHeader>
+    <InterfaceId>PAY001</InterfaceId>
+    <CorrelationId>G20260602010001</CorrelationId>
+    <Sender>COREBANK</Sender>
+    <Receiver>EXTBANK</Receiver>
+  </ExtHeader>
+  <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.09">
+    <CstmrCdtTrfInitn>
+      <GrpHdr>
+        <MsgId>PAY202606020001</MsgId>
+        <CreDtTm>2026-06-02T10:15:30+09:00</CreDtTm>
+        <NbOfTxs>1</NbOfTxs>
+        <CtrlSum>125000.00</CtrlSum>
+      </GrpHdr>
+      <PmtInf>
+        <PmtInfId>PMT-0001</PmtInfId>
+        <PmtMtd>TRF</PmtMtd>
+        <Dbtr><Nm>EACTIVE CO</Nm></Dbtr>
+        <DbtrAcct><Id><Othr><Id>1234567890</Id></Othr></Id></DbtrAcct>
+        <CdtTrfTxInf>
+          <PmtId><EndToEndId>E2E202606020001</EndToEndId></PmtId>
+          <Amt><InstdAmt Ccy="KRW">125000.00</InstdAmt></Amt>
+          <Cdtr><Nm>ACME SUPPLY</Nm></Cdtr>
+          <CdtrAcct><Id><Othr><Id>9876543210</Id></Othr></Id></CdtrAcct>
+          <RmtInf><Ustrd>Invoice 2026-0602</Ustrd></RmtInf>
+        </CdtTrfTxInf>
+      </PmtInf>
+    </CstmrCdtTrfInitn>
+  </Document>
+</ExtPayMessage>`;
+
+    const responsePayload = `{
+  "stdHeader": {
+    "eaiSvcCd": "IF_PAY_ISO20022",
+    "guid": "G20260602010001",
+    "guidSeq": 2,
+    "sndRcvDvCd": "R",
+    "rspCd": "0000"
+  },
+  "data": {
+    "Document": {
+      "CstmrPmtStsRpt": {
+        "OrgnlMsgId": "PAY202606020001",
+        "TxSts": "ACCP",
+        "AccptncDtTm": "2026-06-02T10:15:34+09:00"
+      }
+    }
+  }
+}`;
+
+    const blockedPayload = `{
+  "stdHeader": {
+    "eaiSvcCd": "IF_PAY_ISO20022",
+    "guid": "G20260602010001",
+    "guidSeq": 2,
+    "sndRcvDvCd": "R",
+    "rspCd": "EAI_BLOCKED_CODE"
+  },
+  "data": {
+    "error": {
+      "stage": "RequestProcessor guard",
+      "message": "FlowRouter before stop. External XML is not generated."
+    }
+  }
+}`;
+
+    const commonMappings = [
+      ["stdHeader.eaiSvcCd", "ExtHeader.InterfaceId"],
+      ["stdHeader.guid", "ExtHeader.CorrelationId"],
+      ["stdHeader.srcSysCd / tgtSysCd", "ExtHeader.Sender / Receiver"],
+      ["data.Document.CstmrCdtTrfInitn.GrpHdr.MsgId", "Document/CstmrCdtTrfInitn/GrpHdr/MsgId"],
+      ["Amt.InstdAmt.value + Ccy", "Amt/InstdAmt[@Ccy]"],
+      ["RmtInf.Ustrd", "RmtInf/Ustrd"]
+    ];
+
+    const payloadStages = {
+      0: {
+        active: 0,
+        label: "01 Adapter 수신",
+        title: "전문데이터 변화: 표준 ISO20022 JSON 수신",
+        summary: "기업 내부 표준전문은 표준헤더와 ISO20022 JSON 데이터부를 가진 HTTP body로 들어온다. 아직 외부 XML은 생성되지 않았다.",
+        fqcns: [
+          "com.eactive.eai.adapter.http.dynamic.HttpAdapterMain",
+          "com.eactive.eai.adapter.http.dynamic.impl.HttpAdapterServiceStandard",
+          "com.eactive.eai.adapter.RequestDispatcher"
+        ],
+        beforeLabel: "HTTP body",
+        before: internalIsoJson,
+        afterLabel: "Adapter Properties",
+        after: `Processor.STD_MESSAGE=IF_STANDARD
+Processor.ADAPTER_GROUP_NAME=_APP_IN_HTT_SyS
+Processor.ADAPTER_NAME=_APP_IN_HTT_SyS{ALL}
+requestUrl=approot/HTT/AppInHttSys
+Processor.REQUEST_ACTION=
+inboundCharset=UTF-8`
+      },
+      1: {
+        active: 1,
+        label: "02 ProcessVO",
+        title: "전문데이터 변화: 표준 JSON -> ProcessVO",
+        summary: "RequestProcessor.setVO()는 adapter property를 ProcessVO로 묶는다. 업무 데이터부는 아직 JSON 형태 그대로 남는다.",
+        fqcns: [
+          "com.eactive.eai.inbound.processor.ProcessorFactory",
+          "com.eactive.eai.inbound.processor.RequestProcessor",
+          "com.eactive.eai.adapter.AdapterManager"
+        ],
+        beforeLabel: "입력 ISO20022 JSON",
+        before: internalIsoJson,
+        afterLabel: "ProcessVO + raw message",
+        after: processVoPayload
+      },
+      2: {
+        active: 1,
+        label: "03 StandardMessage",
+        title: "전문데이터 변화: 표준 JSON -> StandardMessage",
+        summary: "IF_STANDARD이므로 StandardReader.parse()가 표준헤더와 ISO20022 JSON 업무부를 StandardMessage에 싣는다.",
+        fqcns: [
+          "com.eactive.eai.message.manager.StandardMessageManager",
+          "com.eactive.eai.message.parser.StandardReader",
+          "com.eactive.eai.common.stdmessage.STDMessageMapperFactory"
+        ],
+        beforeLabel: "입력 ISO20022 JSON",
+        before: internalIsoJson,
+        afterLabel: "StandardMessage.bizData",
+        after: standardMessagePayload
+      },
+      3: {
+        active: 2,
+        label: "04 EAIMessage",
+        title: "전문데이터 변화: StandardMessage -> EAIMessage",
+        summary: "EAISvcCd로 TSEAIHE01/TSEAIHE02를 찾아 Flow route, outbound route, target adapter, 변환 플래그를 붙인다.",
+        fqcns: [
+          "com.eactive.eai.common.message.EAIMessageManager",
+          "com.eactive.eai.common.message.mapper.EAIMessageMapper",
+          "com.eactive.eai.common.message.mapper.ServiceMessageMapper"
+        ],
+        beforeLabel: "StandardMessage",
+        before: standardMessagePayload,
+        afterLabel: "EAIMessage + ServiceMessage",
+        after: eaiEnvelopePayload
+      },
+      4: {
+        active: 2,
+        label: "05 통제/유량",
+        title: "전문데이터 변화: 통제/유량 통과",
+        summary: "거래통제와 유량제어를 통과하면 payload는 바뀌지 않는다. 통과하지 못하면 외부 XML 변환 전에 제한 응답으로 종료된다.",
+        fqcns: [
+          "com.eactive.eai.common.restrict.RestrictInfoManager",
+          "com.eactive.eai.common.inflow.InflowControlUtil",
+          "com.eactive.eai.common.exception.ExceptionHandler"
+        ],
+        beforeLabel: "Gate 입력",
+        before: eaiEnvelopePayload,
+        afterLabel: "Gate 통과",
+        after: `RestrictInfoManager: pass
+InflowControlUtil.adapterBucket: pass
+InflowControlUtil.interfaceBucket: pass
+payload: StandardMessage.bizData unchanged`
+      },
+      5: {
+        active: 2,
+        label: "06 Routing",
+        title: "전문데이터 변화: ROUT_CALL 판정",
+        summary: "RequestProcessor가 ROUT_CALL을 세팅하고 FlowRouter가 BASEFC를 호출한다. 변환 자체는 아직 HTTPProcess 전까지 실행되지 않는다.",
+        fqcns: [
+          "com.eactive.eai.common.routing.RouteKeys",
+          "com.eactive.eai.common.routing.FlowRouter",
+          "com.eactive.eai.common.routing.IFRouter"
+        ],
+        beforeLabel: "EAIMessage",
+        before: eaiEnvelopePayload,
+        afterLabel: "RouteKeys",
+        after: routeEnvelopePayload
+      },
+      6: {
+        active: 3,
+        label: "07 JSON -> XML",
+        title: "전문데이터 변화: 내부 표준 ISO20022 JSON -> 외부 비표준 ISO20022 XML",
+        summary: "DefaultProcess/HTTPProcess가 cnvEn=Y와 TSEAITR01~08 rule을 사용해 내부 ISO20022 JSON 데이터부를 외부 비표준 ISO20022 XML 전문으로 만든다.",
+        fqcns: [
+          "com.eactive.eai.outbound.DefaultProcess",
+          "com.eactive.eai.outbound.HTTPProcess",
+          "com.eactive.eai.message.StandardMessageUtil"
+        ],
+        beforeLabel: "내부 표준전문 data부(JSON)",
+        before: internalIsoJson,
+        afterLabel: "외부 비표준 ISO20022 XML",
+        after: externalIsoXml,
+        mappings: commonMappings
+      },
+      7: {
+        active: 4,
+        label: "08 응답 변환",
+        title: "전문데이터 변화: 외부 XML 응답 -> 내부 표준 JSON 응답",
+        summary: "외부 XML 응답은 bsRspCnvEn 또는 errRspCnvEn에 따라 내부 표준 응답 JSON 데이터부로 되돌아간다.",
+        fqcns: [
+          "com.eactive.eai.outbound.DefaultProcess",
+          "com.eactive.eai.outbound.HTTPProcess",
+          "com.eactive.eai.common.stdmessage.STDMessageMapperFactory"
+        ],
+        beforeLabel: "외부 XML 응답",
+        before: `<ExtPayResponse version="1.0">
+  <ExtHeader>
+    <CorrelationId>G20260602010001</CorrelationId>
+    <ResponseCode>0000</ResponseCode>
+  </ExtHeader>
+  <Document>
+    <CstmrPmtStsRpt>
+      <OrgnlMsgId>PAY202606020001</OrgnlMsgId>
+      <TxSts>ACCP</TxSts>
+      <AccptncDtTm>2026-06-02T10:15:34+09:00</AccptncDtTm>
+    </CstmrPmtStsRpt>
+  </Document>
+</ExtPayResponse>`,
+        afterLabel: "내부 표준 응답 JSON",
+        after: responsePayload
+      }
+    };
+
+    const blockPayloadStage = {
+      active: 2,
+      block: true,
+      label: "Gate 차단",
+      summary: "거래통제 또는 유량제어가 막으면 StandardMessage까지는 만들어졌더라도 FlowRouter와 HTTPProcess가 실행되지 않는다. 따라서 외부 비표준 ISO20022 XML은 생성되지 않는다.",
+      fqcns: [
+        "com.eactive.eai.inbound.processor.RequestProcessor",
+        "com.eactive.eai.common.restrict.RestrictInfoManager",
+        "com.eactive.eai.common.inflow.InflowControlUtil",
+        "com.eactive.eai.common.exception.ExceptionHandler"
+      ],
+      beforeLabel: "차단 직전 EAIMessage",
+      before: eaiEnvelopePayload,
+      afterLabel: "제한 응답",
+      after: blockedPayload
+    };
+
+    const nonStdRaw = `BANK01|PAYMENT|0200|G2026060200020|1|SEND|00000125000|ACME SUPPLY|Invoice 2026-0602`;
+
+    const nonStdStandardPayload = `StandardMessage {
+  header: {
+    EAISvcCd: "IF_EXT_PAYMENT",
+    GUID: "G2026060200020",
+    GUID_SEQ: "1",
+    sendRecvDivision: "SEND"
+  },
+  bizDataCharset: "EUC-KR",
+  bizData: {
+    bankCode: "BANK01",
+    messageCode: "PAYMENT",
+    amount: 125000,
+    receiverName: "ACME SUPPLY",
+    memo: "Invoice 2026-0602"
+  }
+}`;
+
+    const nonStdEaiPayload = `EAIMessage {
+  EAISvcCd: "IF_EXT_PAYMENT",
+  flwCntlRtnNm: "BASEFC",
+  svcTsmtUsgTp: "SYNC_SVC",
+  psvItfTp: "SYNC_SVC",
+  currentSvcMsg: ServiceMessage {
+    outbRtnNm: "RESTOUT",
+    targetAdapter: "AG_PAY_REST_OUT",
+    cnvEn: "Y",
+    bsRspCnvEn: "Y",
+    errRspCnvEn: "Y"
+  }
+}`;
+
+    const nonStdRestJson = `{
+  "payment": {
+    "interfaceId": "IF_EXT_PAYMENT",
+    "correlationId": "G2026060200020",
+    "amount": 125000,
+    "receiverName": "ACME SUPPLY",
+    "memo": "Invoice 2026-0602"
+  }
+}`;
+
+    const nonStdSourceResponse = `BANK01|PAYMENT|0210|G2026060200020|2|0000|ACCEPTED`;
+
+    const subRaw = `SUBHDR|LEGACY_REPLY|0210|G2026060199001|003|RECV
+SUBBODY|RESULT=OK|ORIG_MSG_ID=PAY2026060199001|AMT=125000`;
+
+    const subStandardPayload = `StandardMessage {
+  header: {
+    EAISvcCd: "IF_BATCH_REPLY",
+    GUID: "G2026060199001",
+    GUID_SEQ: "3",
+    sendRecvDivision: "RECV"
+  },
+  bizDataCharset: "UTF-8",
+  bizData: {
+    resultCode: "OK",
+    originalMessageId: "PAY2026060199001",
+    amount: 125000
+  }
+}`;
+
+    const subEaiPayload = `EAIMessage {
+  EAISvcCd: "IF_BATCH_REPLY",
+  flwCntlRtnNm: "BASEFC",
+  svcTsmtUsgTp: "ASYNC_SVC",
+  psvItfTp: "ASYNC_SVC",
+  currentSvcMsg: ServiceMessage {
+    outbRtnNm: "SOCKETOUT",
+    targetAdapter: "AG_LEGACY_SOCKET_OUT",
+    cnvEn: "Y"
+  }
+}`;
+
+    const subQueuePayload = `Queue message {
+  ROUTING_TYPE: "ROUT_QUEUE",
+  queueName: "routing.resqueue or BASEFC async path",
+  body: EAIMessage {
+    EAISvcCd: "IF_BATCH_REPLY",
+    standardMessage: "SUB layout mapped to standard layout",
+    sendRecvDivision: "RECV"
+  }
+}`;
+
+    const topicStandardPayload = `StandardMessage {
+  header: {
+    EAISvcCd: "IF_CORE_REPLY",
+    GUID: "G2026060200500",
+    GUID_SEQ: "2",
+    sendRecvDivision: "RECV"
+  },
+  bizDataCharset: "UTF-8",
+  bizData: {
+    originalGuid: "G2026060200500",
+    resultCode: "0000",
+    resultMessage: "후속 응답 도착"
+  }
+}`;
+
+    const topicEaiPayload = `EAIMessage {
+  EAISvcCd: "IF_CORE_REPLY",
+  flwCntlRtnNm: "BASEFC",
+  svcTsmtUsgTp: "SYNC_SVC",
+  psvItfTp: "ASYNC_SVC",
+  currentSvcMsg: ServiceMessage {
+    keyMgtMsgVl: "TR-G2026060200500",
+    cnvEn: "N"
+  }
+}`;
+
+    const topicRoutePayload = `RouteKeys {
+  ROUTING_TYPE: "ROUT_TOPIC",
+  TRACE_KEY: "TR-G2026060200500"
+}
+
+FlowRouter -> SessionManager.putTopic(traceKey, eaiMessage)
+or JMSSender.sendToTopic(..., traceKey, ttl)`;
+
+    const restrictPayload = `{
+  "stdHeader": {
+    "eaiSvcCd": "IF_CIS_TRANSFER",
+    "guid": "G2026060200777",
+    "guidSeq": 2,
+    "sndRcvDvCd": "R",
+    "rspCd": "EAI_BLOCKED_CODE"
+  },
+  "data": {
+    "error": "RestrictInfoManager blocked before FlowRouter"
+  }
+}`;
+
+    const inflowRaw = `{
+  "clientId": "OPENAPI-CLIENT-17",
+  "method": "POST",
+  "path": "/pay/v1",
+  "amount": 125000,
+  "receiver": "ACME SUPPLY"
+}`;
+
+    const inflowStandardPayload = `StandardMessage {
+  header: {
+    EAISvcCd: "IF_OPEN_PAY",
+    GUID: "G2026060200888",
+    GUID_SEQ: "1",
+    sendRecvDivision: "SEND"
+  },
+  bizDataCharset: "UTF-8",
+  bizData: {
+    clientId: "OPENAPI-CLIENT-17",
+    amount: 125000,
+    receiver: "ACME SUPPLY"
+  }
+}`;
+
+    const inflowEaiPayload = `EAIMessage {
+  EAISvcCd: "IF_OPEN_PAY",
+  flwCntlRtnNm: "BASEFC",
+  svcTsmtUsgTp: "SYNC_SVC",
+  psvItfTp: "SYNC_SVC",
+  rspErrCd: "EAI_INFLOW_BLOCKED_CODE"
+}`;
+
+    const inflowPayload = `HTTP 429 or 제한 응답 {
+  errorCode: "EAI_INFLOW_BLOCKED_CODE",
+  blockedType: "adapter bucket",
+  adapterGroupName: "_APP_IN_HTT_SyS",
+  FlowRouter: "not reached"
+}`;
+
+    const nonStdMappings = [
+      ["BANK01|PAYMENT|0200", "selectedKey"],
+      ["field[3]", "stdHeader.guid"],
+      ["field[6]", "bizData.amount"],
+      ["field[7]", "bizData.receiverName"],
+      ["StandardMessage.bizData", "REST JSON payment body"]
+    ];
+
+    const subMappings = [
+      ["SUBHDR.messageId", "stdHeader.eaiSvcCd"],
+      ["SUBHDR.guid", "stdHeader.guid"],
+      ["SUBBODY.RESULT", "bizData.resultCode"],
+      ["SUBBODY.ORIG_MSG_ID", "bizData.originalMessageId"],
+      ["StandardMessage", "Queue body EAIMessage.standardMessage"]
+    ];
+
+    const scenarioPayloadStages = {
+      nonStdSync: {
+        0: {
+          ...payloadStages[0],
+          title: "전문데이터 변화: 비표준 원문 -> Adapter 식별 속성",
+          summary: "비표준 전문은 표준헤더가 없으므로 원문과 adapter property, RequestAction이 식별 출발점이다.",
+          beforeLabel: "비표준 원문",
+          before: nonStdRaw,
+          afterLabel: "Adapter Properties",
+          after: `Processor.STD_MESSAGE=IF_NONSTANDARD
+Processor.REQUEST_ACTION=ExtPaymentKeyAction
+Processor.ADAPTER_GROUP_NAME=_APP_IN_HTT_SyS
+Processor.ADAPTER_NAME=_APP_IN_HTT_SyS{ALL}
+requestUrl=approot/HTT/AppInHttSys
+inboundCharset=EUC-KR`
+        },
+        1: {
+          ...payloadStages[1],
+          title: "전문데이터 변화: 비표준 원문 -> ProcessVO",
+          summary: "setVO는 actionName과 adapter message type을 ProcessVO에 보관하고, 원문은 아직 비표준 상태다.",
+          beforeLabel: "비표준 원문",
+          before: nonStdRaw,
+          afterLabel: "ProcessVO + raw message",
+          after: `ProcessVO {
+  stdMsgTypeCode: "IF_NONSTANDARD",
+  actionName: "ExtPaymentKeyAction",
+  adptrMsgType: "DELIMITER",
+  selectedKey: null,
+  adapterGroupName: "_APP_IN_HTT_SyS"
+}
+
+rawMessage: ${nonStdRaw}`
+        },
+        2: {
+          ...payloadStages[2],
+          title: "전문데이터 변화: RequestAction key -> StandardMessage",
+          summary: "RequestAction.perform 결과 selectedKey로 rule을 찾고 StandardMessageUtil이 표준전문을 만든다.",
+          fqcns: [
+            "com.eactive.eai.inbound.action.ActionFactory",
+            "com.eactive.eai.inbound.action.RequestAction",
+            "com.eactive.eai.message.StandardMessageUtil"
+          ],
+          beforeLabel: "selectedKey + 비표준 원문",
+          before: `selectedKey=BANK01|PAYMENT|0200
+raw=${nonStdRaw}`,
+          afterLabel: "StandardMessage",
+          after: nonStdStandardPayload,
+          mappings: nonStdMappings
+        },
+        3: {
+          ...payloadStages[3],
+          title: "전문데이터 변화: StandardMessage -> EAIMessage",
+          before: nonStdStandardPayload,
+          after: nonStdEaiPayload
+        },
+        4: {
+          ...payloadStages[4],
+          title: "전문데이터 변화: 통제/유량 통과",
+          before: nonStdEaiPayload,
+          after: `RestrictInfoManager: pass
+InflowControlUtil.adapterBucket: pass
+InflowControlUtil.interfaceBucket: pass
+payload: non-standard normalized StandardMessage unchanged`
+        },
+        5: {
+          ...payloadStages[5],
+          title: "전문데이터 변화: ROUT_CALL 판정",
+          before: nonStdEaiPayload,
+          after: `RouteKeys {
+  ROUTING_TYPE: "ROUT_CALL"
+}
+
+FlowRouter -> BASEFC
+IFRouter -> RESTOUT
+DefaultProcess -> RESTProcess`
+        },
+        6: {
+          ...payloadStages[6],
+          label: "07 REST 변환",
+          title: "전문데이터 변화: 표준전문 -> Target REST JSON",
+          summary: "비표준 Source 원문은 Target으로 그대로 가지 않고, 표준전문으로 정규화된 뒤 outbound 변환 rule로 REST JSON이 된다.",
+          fqcns: [
+            "com.eactive.eai.outbound.DefaultProcess",
+            "com.eactive.eai.outbound.RESTProcess",
+            "com.eactive.eai.control.Transform"
+          ],
+          beforeLabel: "정규화된 StandardMessage",
+          before: nonStdStandardPayload,
+          afterLabel: "Target REST JSON",
+          after: nonStdRestJson,
+          mappings: nonStdMappings
+        },
+        7: {
+          ...payloadStages[7],
+          label: "08 Source 응답",
+          title: "전문데이터 변화: Target 응답 -> Source 비표준 응답",
+          summary: "Target 응답은 bsRspCnvEn/errRspCnvEn에 따라 Source adapter가 기대하는 비표준 응답 포맷으로 돌아간다.",
+          beforeLabel: "REST response",
+          before: `{
+  "resultCode": "0000",
+  "status": "ACCEPTED",
+  "correlationId": "G2026060200020"
+}`,
+          afterLabel: "Source 비표준 응답",
+          after: nonStdSourceResponse
+        }
+      },
+      subQueue: {
+        0: {
+          ...payloadStages[0],
+          title: "전문데이터 변화: SUB표준 원문 -> Adapter 식별 속성",
+          summary: "SUB표준은 별도 version layout으로 들어오며, 최종 표준전문으로 mapFromSub 되어야 한다.",
+          beforeLabel: "SUB표준 원문",
+          before: subRaw,
+          afterLabel: "Adapter Properties",
+          after: `Processor.STD_MESSAGE=IF_SUBSTANDARD
+Processor.REQUEST_ACTION=SubReplyKeyAction
+Processor.ADAPTER_GROUP_NAME=AG_BATCH_JMS_IN
+Processor.ADAPTER_NAME=JMS_BATCH_01
+inboundCharset=UTF-8`
+        },
+        1: {
+          ...payloadStages[1],
+          title: "전문데이터 변화: SUB표준 원문 -> ProcessVO",
+          beforeLabel: "SUB표준 원문",
+          before: subRaw,
+          afterLabel: "ProcessVO + selectedKey 후보",
+          after: `ProcessVO {
+  stdMsgTypeCode: "IF_SUBSTANDARD",
+  actionName: "SubReplyKeyAction",
+  adptrMsgType: "FLAT_SUB",
+  selectedKey: "LEGACY_REPLY|0210",
+  adapterGroupName: "AG_BATCH_JMS_IN"
+}`
+        },
+        2: {
+          ...payloadStages[2],
+          title: "전문데이터 변화: SUB layout -> StandardMessage",
+          summary: "versionMapper.parseSub가 SUB전문을 읽고 mapFromSub가 표준전문 field로 옮긴다.",
+          fqcns: [
+            "com.eactive.eai.message.mapper.DefaultMessageMapper",
+            "com.eactive.eai.message.manager.StandardMessageManager",
+            "com.eactive.eai.message.StandardMessageUtil"
+          ],
+          beforeLabel: "SUB layout message",
+          before: subRaw,
+          afterLabel: "StandardMessage",
+          after: subStandardPayload,
+          mappings: subMappings
+        },
+        3: {
+          ...payloadStages[3],
+          title: "전문데이터 변화: StandardMessage -> Async EAIMessage",
+          before: subStandardPayload,
+          after: subEaiPayload
+        },
+        4: {
+          ...payloadStages[4],
+          title: "전문데이터 변화: 비동기 gate 통과",
+          before: subEaiPayload,
+          after: `RestrictInfoManager: pass
+InflowControlUtil: pass
+payload: StandardMessage mapped from SUB unchanged`
+        },
+        5: {
+          ...payloadStages[5],
+          title: "전문데이터 변화: ROUT_QUEUE 판정",
+          summary: "svcTsmtUsgTp가 SYNC_SVC가 아니므로 Target 호출이 아니라 Flow Control queue 적재로 판정된다.",
+          beforeLabel: "Async EAIMessage",
+          before: subEaiPayload,
+          afterLabel: "RouteKeys",
+          after: `RouteKeys {
+  ROUTING_TYPE: "ROUT_QUEUE"
+}`
+        },
+        6: {
+          ...payloadStages[6],
+          label: "07 Queue 적재",
+          title: "전문데이터 변화: EAIMessage Queue 적재",
+          summary: "FlowRouter는 JMSSender.sendToQueue로 EAIMessage를 적재한다. 이 단계에서 외부 XML 요청은 생성되지 않는다.",
+          fqcns: [
+            "com.eactive.eai.common.routing.RouteKeys",
+            "com.eactive.eai.common.routing.FlowRouter",
+            "com.eactive.eai.common.util.JMSSender"
+          ],
+          beforeLabel: "EAIMessage",
+          before: subEaiPayload,
+          afterLabel: "Queue body",
+          after: subQueuePayload,
+          mappings: subMappings
+        },
+        7: {
+          ...payloadStages[7],
+          label: "08 Queue Ack",
+          title: "전문데이터 변화: Source는 queue accept로 종료",
+          summary: "비동기 요청은 Target 동기 응답을 기다리지 않는다. 이후 처리는 queue consumer가 이어받는다.",
+          fqcns: [
+            "com.eactive.eai.common.routing.FlowRouter",
+            "com.eactive.eai.flowcontrol.jms.FCQueueReceiver",
+            "com.eactive.eai.flowcontrol.jms.FCQueueReceiverManager"
+          ],
+          beforeLabel: "Queue send result",
+          before: `JMSSender.sendToQueue: success
+queueName=routing.resqueue or BASEFC async path`,
+          afterLabel: "Inbound return",
+          after: `sourceAck: "QUEUE_ACCEPTED"
+targetCall: "deferred by queue consumer"`
+        }
+      },
+      syncAsyncTopic: {
+        0: {
+          ...payloadStages[0],
+          title: "전문데이터 변화: 후속 응답 표준전문 수신",
+          summary: "Sync-Async 후속 응답은 요청 변환 대상이 아니라 대기 거래에 연결할 응답 전문이다.",
+          beforeLabel: "HTTP callback body",
+          before: topicStandardPayload,
+          afterLabel: "Adapter Properties",
+          after: `Processor.STD_MESSAGE=IF_STANDARD
+Processor.ADAPTER_GROUP_NAME=_APP_IN_HTT_SyS
+Processor.ADAPTER_NAME=_APP_IN_HTT_SyS{ALL}
+requestUrl=approot/HTT/AppInHttSys
+inboundCharset=UTF-8`
+        },
+        1: {
+          ...payloadStages[1],
+          title: "전문데이터 변화: 후속 응답 -> ProcessVO",
+          summary: "후속 응답도 adapter metadata와 uuid를 ProcessVO에 묶는다. 업무 데이터는 응답 전문 그대로 유지된다.",
+          beforeLabel: "후속 응답 표준전문",
+          before: topicStandardPayload,
+          afterLabel: "ProcessVO + response context",
+          after: `ProcessVO {
+  stdMsgTypeCode: "IF_STANDARD",
+  adptrMsgType: "FLAT",
+  adapterGroupName: "_APP_IN_HTT_SyS",
+  uuid: "001-UUID-0500"
+}
+
+returnType=RECV`
+        },
+        2: {
+          ...payloadStages[2],
+          title: "전문데이터 변화: 표준 응답 파싱",
+          summary: "StandardReader가 returnType=RECV인 응답 전문을 StandardMessage로 읽는다.",
+          beforeLabel: "표준 응답 전문",
+          before: topicStandardPayload,
+          afterLabel: "StandardMessage(returnType=RECV)",
+          after: topicStandardPayload
+        },
+        3: {
+          ...payloadStages[3],
+          title: "전문데이터 변화: Sync-Async EAIMessage",
+          before: topicStandardPayload,
+          after: topicEaiPayload
+        },
+        4: {
+          ...payloadStages[4],
+          title: "전문데이터 변화: 후속 응답 gate 통과",
+          summary: "후속 응답도 제한 판정을 통과해야 traceKey topic 연결로 갈 수 있다.",
+          beforeLabel: "Sync-Async response EAIMessage",
+          before: topicEaiPayload,
+          afterLabel: "Gate 통과",
+          after: `RestrictInfoManager: pass
+InflowControlUtil: pass
+payload: response StandardMessage unchanged`
+        },
+        5: {
+          ...payloadStages[5],
+          title: "전문데이터 변화: ROUT_TOPIC 판정",
+          summary: "SYNC_SVC + ASYNC_SVC + RECV 조합이면 RequestProcessor가 ROUT_TOPIC과 TRACE_KEY를 세팅한다.",
+          beforeLabel: "Sync-Async response EAIMessage",
+          before: topicEaiPayload,
+          afterLabel: "RouteKeys",
+          after: topicRoutePayload
+        },
+        6: {
+          ...payloadStages[6],
+          label: "07 Topic 연결",
+          title: "전문데이터 변화: traceKey 기준 응답 연결",
+          summary: "FlowRouter는 SessionManager.putTopic 또는 JMS Topic으로 후속 응답을 넘긴다. 외부 요청 변환은 없다.",
+          fqcns: [
+            "com.eactive.eai.common.routing.RouteKeys",
+            "com.eactive.eai.common.routing.FlowRouter",
+            "com.eactive.eai.common.session.SessionManager"
+          ],
+          beforeLabel: "RouteKeys + EAIMessage",
+          before: topicRoutePayload,
+          afterLabel: "Waiting source handoff",
+          after: `traceKey=TR-G2026060200500
+SessionManager.putTopic(traceKey, eaiMessage)
+waiting HTTP request receives matched response`
+        },
+        7: {
+          ...payloadStages[7],
+          label: "08 대기 응답",
+          title: "전문데이터 변화: Source 대기 응답 반환",
+          summary: "대기 중인 Source 요청은 traceKey로 받은 후속 응답 전문을 반환받는다.",
+          fqcns: [
+            "com.eactive.eai.outbound.DefaultProcess",
+            "com.eactive.eai.outbound.HTTPProcess",
+            "com.eactive.eai.common.session.SessionManager"
+          ],
+          beforeLabel: "Matched topic message",
+          before: topicStandardPayload,
+          afterLabel: "Source response",
+          after: topicStandardPayload
+        }
+      },
+      restrictBlock: {
+        0: {
+          ...payloadStages[0],
+          title: "전문데이터 변화: 통제 대상 표준전문 수신",
+          summary: "전문 자체는 정상 수신되며, 차단 여부는 EAISvcCd와 기관 코드가 확보된 뒤 판정된다.",
+          beforeLabel: "HTTP body",
+          before: `{
+  "stdHeader": {
+    "eaiSvcCd": "IF_CIS_TRANSFER",
+    "guid": "G2026060200777",
+    "guidSeq": 1,
+    "sndRcvDvCd": "S",
+    "instCode": "003"
+  },
+  "data": {
+    "transfer": {
+      "amount": 125000,
+      "receiver": "ACME SUPPLY"
+    }
+  }
+}`,
+          afterLabel: "Adapter Properties",
+          after: `Processor.STD_MESSAGE=IF_STANDARD
+Processor.ADAPTER_GROUP_NAME=_APP_IN_HTT_SyS
+Processor.ADAPTER_NAME=_APP_IN_HTT_SyS{ALL}
+requestUrl=approot/HTT/AppInHttSys`
+        },
+        1: {
+          ...payloadStages[1],
+          title: "전문데이터 변화: 통제 대상 ProcessVO",
+          beforeLabel: "표준 요청 전문",
+          before: `EAISvcCd=IF_CIS_TRANSFER
+GUID=G2026060200777
+instCode=003`,
+          afterLabel: "ProcessVO",
+          after: `ProcessVO {
+  stdMsgTypeCode: "IF_STANDARD",
+  adptrMsgType: "FLAT",
+  adapterGroupName: "_APP_IN_HTT_SyS",
+  uuid: "001-UUID-0777"
+}`
+        },
+        2: {
+          ...payloadStages[2],
+          title: "전문데이터 변화: 표준 파싱 성공",
+          summary: "StandardReader가 EAISvcCd와 instCode를 확보해야 RestrictInfoManager 판정이 가능하다.",
+          beforeLabel: "표준 요청 전문",
+          before: `EAISvcCd=IF_CIS_TRANSFER
+GUID=G2026060200777
+instCode=003
+sendRecvDivision=SEND`,
+          afterLabel: "StandardMessage",
+          after: `StandardMessage {
+  EAISvcCd: "IF_CIS_TRANSFER",
+  GUID: "G2026060200777",
+  GUID_SEQ: "1",
+  sendRecvDivision: "SEND",
+  instCode: "003"
+}`
+        },
+        3: {
+          ...payloadStages[3],
+          title: "전문데이터 변화: 통제 판정 전 EAIMessage",
+          beforeLabel: "StandardMessage",
+          before: `StandardMessage {
+  EAISvcCd: "IF_CIS_TRANSFER",
+  GUID: "G2026060200777",
+  sendRecvDivision: "SEND",
+  instCode: "003"
+}`,
+          afterLabel: "EAIMessage",
+          after: `EAIMessage {
+  EAISvcCd: "IF_CIS_TRANSFER",
+  flwCntlRtnNm: "BASEFC",
+  svcTsmtUsgTp: "SYNC_SVC",
+  psvItfTp: "SYNC_SVC"
+}`
+        },
+        4: {
+          ...blockPayloadStage,
+          title: "전문데이터 변화: 거래통제 차단 응답",
+          summary: "RestrictInfoManager가 막으면 FlowRouter/HTTPProcess가 실행되지 않고 제한 응답으로 종료된다.",
+          beforeLabel: "차단 직전 EAIMessage",
+          before: `EAIMessage {
+  EAISvcCd: "IF_CIS_TRANSFER",
+  instCode: "003",
+  rspErrCd: "EAI_BLOCKED_CODE",
+  FlowRouter: "not reached"
+}`,
+          afterLabel: "제한 응답",
+          after: restrictPayload
+        },
+        7: {
+          ...blockPayloadStage,
+          title: "전문데이터 변화: 제한 응답 반환",
+          summary: "동기 표준 거래는 제한 응답 전문으로 반환되고, 비동기 거래는 ExceptionHandler 경로로 종료된다.",
+          beforeLabel: "RequestProcessor restricted branch",
+          before: `logPssSno=400
+mapper.setSendRecvDivision(RECV)
+getRestrictedResponse(...)`,
+          afterLabel: "Source response",
+          after: restrictPayload
+        }
+      },
+      inflowBlock: {
+        0: {
+          ...payloadStages[0],
+          title: "전문데이터 변화: REST 비표준 JSON 수신",
+          summary: "비표준 REST 요청은 RequestAction으로 key를 추출한 뒤 표준전문으로 정규화된다.",
+          beforeLabel: "REST JSON body",
+          before: inflowRaw,
+          afterLabel: "Adapter Properties",
+          after: `Processor.STD_MESSAGE=IF_NONSTANDARD
+Processor.REQUEST_ACTION=RestPayKeyAction
+Processor.ADAPTER_GROUP_NAME=_APP_IN_HTT_SyS
+Processor.ADAPTER_NAME=_APP_IN_HTT_SyS{ALL}
+requestUrl=approot/HTT/AppInHttSys`
+        },
+        1: {
+          ...payloadStages[1],
+          title: "전문데이터 변화: REST 요청 -> ProcessVO",
+          summary: "adapterGroupName은 유량제어 adapter bucket 판정의 입력이고, selectedKey는 표준전문 생성 rule을 찾는 입력이다.",
+          beforeLabel: "REST JSON body",
+          before: inflowRaw,
+          afterLabel: "ProcessVO",
+          after: `ProcessVO {
+  stdMsgTypeCode: "IF_NONSTANDARD",
+  actionName: "RestPayKeyAction",
+  adptrMsgType: "JSON",
+  selectedKey: "POST:/pay|v1",
+  adapterGroupName: "_APP_IN_HTT_SyS"
+}`
+        },
+        2: {
+          ...payloadStages[2],
+          title: "전문데이터 변화: REST key -> StandardMessage",
+          summary: "selectedKey=POST:/pay|v1 rule로 REST JSON body가 표준 layout으로 옮겨진다.",
+          beforeLabel: "selectedKey + REST body",
+          before: `selectedKey=POST:/pay|v1
+${inflowRaw}`,
+          afterLabel: "StandardMessage",
+          after: inflowStandardPayload
+        },
+        3: {
+          ...payloadStages[3],
+          title: "전문데이터 변화: 유량제어 전 EAIMessage",
+          before: inflowStandardPayload,
+          after: inflowEaiPayload
+        },
+        4: {
+          ...blockPayloadStage,
+          title: "전문데이터 변화: 유량제어 차단 응답",
+          summary: "adapter/interface bucket이 거부하면 FlowRouter 전 단계에서 EAI_INFLOW_BLOCKED_CODE가 세팅된다.",
+          beforeLabel: "Bucket 판정 입력",
+          before: inflowEaiPayload,
+          afterLabel: "HTTP 429 또는 제한 응답",
+          after: inflowPayload
+        },
+        7: {
+          ...blockPayloadStage,
+          title: "전문데이터 변화: HTTP 429 반환",
+          summary: "REST/HTTP 비표준 경로는 HttpStatusException으로 TOO_MANY_REQUESTS(429)를 반환할 수 있다.",
+          beforeLabel: "RequestProcessor inflow branch",
+          before: `blockedType="A"
+rspErrorCode=EAI_INFLOW_BLOCKED_CODE
+adptGrpVO.type=REST/HTTP`,
+          afterLabel: "Source response",
+          after: inflowPayload
+        }
+      }
+    };
+
+    const scenarios = {
+      stdSync: {
+        title: "표준 JSON -> 외부 XML 요청",
+        sub: "기업 표준 ISO20022 JSON -> 외부 비표준 ISO20022 XML",
+        kind: "call",
+        messageType: "IF_STANDARD",
+        route: "ROUT_CALL",
+        outcome: "Source가 보낸 기업 내부 표준전문은 표준헤더와 ISO20022 JSON 데이터부를 가진다. RequestProcessor에서 StandardMessage와 EAIMessage가 확정되고, 통제/유량을 통과한 뒤 HTTPProcess가 TSEAITR01~08 rule로 외부 비표준 ISO20022 XML을 생성해 Target으로 보낸다.",
+        code: "if (SYNC_SVC.equals(svcTsmtUsgTp)) {\n  prop.setProperty(RouteKeys.ROUTING_TYPE, RouteKeys.ROUT_CALL);\n}\nFlowRouter.process(eaiMsg, prop);",
+        input: [
+          ["Protocol", "HTTP POST approot/HTT/AppInHttSys"],
+          ["REQUEST_ACTION", "(사용 안 함)"],
+          ["ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+          ["ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+          ["URI rule", "AppInHttSys -> _APP_IN_HTT_SyS"],
+          ["STD_MESSAGE", "IF_STANDARD"],
+          ["Raw 전문", "기업 표준헤더 + ISO20022 JSON data.Document"],
+          ["adptrMsgType", "JSON_ISO20022"],
+          ["message charset", "UTF-8"]
+        ],
+        judgement: [
+          ["식별 기준", "STD_MESSAGE=IF_STANDARD"],
+          ["EAISvcCd", "IF_PAY_ISO20022"],
+          ["GUID/GUID_SEQ", "G20260602010001 / 1"],
+          ["returnType", "SEND"],
+          ["svcTsmtUsgTp", "SYNC_SVC"],
+          ["psvItfTp", "SYNC_SVC"],
+          ["Flow route", "BASEFC"],
+          ["Outbound route", "HTTPOUT"],
+          ["Target 전문", "외부 비표준 ISO20022 XML"]
+        ],
+        envelope: [
+          {
+            name: "Adapter Properties",
+            note: "HttpAdapterServiceSupport",
+            fields: [
+              ["Processor.ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+              ["Processor.ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+              ["requestUrl", "approot/HTT/AppInHttSys"],
+              ["Processor.STD_MESSAGE", "IF_STANDARD"],
+              ["Processor.REQUEST_ACTION", ""],
+              ["inboundCharset", "UTF-8"]
+            ]
+          },
+          {
+            name: "ProcessVO",
+            note: "RequestProcessor.setVO()",
+            fields: [
+              ["stdMsgTypeCode", "IF_STANDARD"],
+              ["adptrMsgType", "JSON_ISO20022"],
+              ["instiNo", "001"],
+              ["uuid", "001-UUID-10001"],
+              ["bidInterface", "N"],
+              ["adapterGroupName", "_APP_IN_HTT_SyS"]
+            ]
+          },
+          {
+            name: "StandardMessage",
+            note: "StandardReader.parse()",
+            fields: [
+              ["EAISvcCd", "IF_PAY_ISO20022"],
+              ["GUID", "G20260602010001"],
+              ["GUID_SEQ", "1"],
+              ["sendRecvDivision", "SEND"],
+              ["bizData", "ISO20022 JSON Document"]
+            ]
+          },
+          {
+            name: "EAIMessage",
+            note: "TSEAIHE01",
+            fields: [
+              ["EAISvcCd", "IF_PAY_ISO20022"],
+              ["flwCntlRtnNm", "BASEFC"],
+              ["svcTsmtUsgTp", "SYNC_SVC"],
+              ["psvItfTp", "SYNC_SVC"],
+              ["currentSvcMsg", "SEQ=1"]
+            ]
+          },
+          {
+            name: "ServiceMessage",
+            note: "TSEAIHE02",
+            fields: [
+              ["outbRtnNm", "HTTPOUT"],
+              ["targetAdapter", "AG_EXTBANK_XML_OUT"],
+              ["cnvEn", "Y"],
+              ["bsRspCnvEn", "Y"],
+              ["errRspCnvEn", "Y"],
+              ["keyMgtMsgVl", "G20260602010001"]
+            ]
+          },
+          {
+            name: "RouteKeys",
+            note: "RequestProcessor",
+            fields: [
+              ["ROUTING_TYPE", "ROUT_CALL"],
+              ["TRACE_KEY", ""],
+              ["CALL_TARGET", "BASEFC"],
+              ["blocked", "false"]
+            ]
+          },
+          {
+            name: "Outbound Object",
+            note: "HTTPProcess",
+            fields: [
+              ["request transform", "TSEAITR01~08"],
+              ["request object", "ISO20022 JSON -> 외부 ISO20022 XML"],
+              ["response transform", "bsRspCnvEn=Y"],
+              ["source response", "내부 표준 ISO20022 JSON 응답"]
+            ]
+          }
+        ],
+        steps: [
+          {
+            stage: 0,
+            status: "pass",
+            title: "Inbound Adapter 수신",
+            summary: "HTTP URI와 adapter 설정으로 공통 요청 처리에 넘길 Properties를 만든다.",
+            code: "HttpAdapterMain, HttpAdapterServiceStandard",
+            detail: "이 단계의 핵심 산출물은 원문 바이트만이 아니라 adapterGroup, adapterName, STD_MESSAGE 같은 Properties입니다. 업무 데이터부는 ISO20022 JSON이지만, 처리 문맥은 adapter metadata에서 시작합니다.",
+            data: "requestUrl=approot/HTT/AppInHttSys, ADAPTER_GROUP_NAME=_APP_IN_HTT_SyS, STD_MESSAGE=IF_STANDARD, data=ISO20022 JSON",
+            fields: ["Processor.STD_MESSAGE", "Processor.ADAPTER_GROUP_NAME"]
+          },
+          {
+            stage: 1,
+            status: "pass",
+            title: "ProcessVO 생성",
+            summary: "AdapterManager의 AdapterGroupVO에서 메시지 유형, 기관번호, BID 여부를 읽는다.",
+            code: "RequestProcessor.setVO(Properties,long)",
+            detail: "ProcessVO는 Request Layer의 임시 변수 이상입니다. adapter metadata와 uuid, 표준/비표준 유형이 이 객체에 모이고, 이후 unknown message, trace key, 에러 응답 처리에서도 같은 문맥을 사용합니다.",
+            data: "stdMsgTypeCode=IF_STANDARD, adptrMsgType=JSON_ISO20022, uuid=001-UUID-10001",
+            fields: ["stdMsgTypeCode", "adptrMsgType", "uuid"]
+          },
+          {
+            stage: 2,
+            status: "pass",
+            title: "표준전문 파싱",
+            summary: "IF_STANDARD이므로 RequestAction을 거치지 않고 StandardReader.parse를 실행한다.",
+            code: "StandardMessageManager.getReader(...).parse()",
+            detail: "표준전문 경로에서는 전문 key를 따로 추출하지 않습니다. 표준헤더에서 EAISvcCd, GUID, GUID_SEQ, 송수신 구분을 읽고 ISO20022 JSON 업무부를 StandardMessage.bizData로 보관합니다.",
+            data: "EAISvcCd=IF_PAY_ISO20022, GUID=G20260602010001, returnType=SEND",
+            fields: ["EAISvcCd", "GUID", "GUID_SEQ", "sendRecvDivision"]
+          },
+          {
+            stage: 3,
+            status: "pass",
+            title: "EAIMessage/ServiceMessage 확정",
+            summary: "EAISvcCd로 서비스 메타를 찾아 Flow route와 Outbound route를 정한다.",
+            code: "EAIMessageManager, EAIMessageMapper, ServiceMessageMapper",
+            detail: "TSEAIHE01은 거래 전체의 Flow Control route와 동기/비동기 속성을 제공하고, TSEAIHE02는 현재 서비스 메시지의 outbound route, target adapter, 변환 플래그를 제공합니다.",
+            data: "flwCntlRtnNm=BASEFC, outbRtnNm=HTTPOUT, targetAdapter=AG_EXTBANK_XML_OUT",
+            fields: ["flwCntlRtnNm", "outbRtnNm", "svcTsmtUsgTp", "targetAdapter"]
+          },
+          {
+            stage: 4,
+            status: "pass",
+            title: "거래통제와 유량제어 통과",
+            summary: "RestrictInfoManager와 InflowControlUtil이 모두 pass를 반환한다.",
+            code: "RestrictInfoManager, InflowControlUtil",
+            detail: "두 판정은 FlowRouter 호출 전에 끝납니다. 여기서 차단되면 후속 BASEFC/HTTPProcess는 실행되지 않습니다.",
+            data: "restrict=pass, bucket.adapter=pass, bucket.interface=pass",
+            fields: ["blocked"]
+          },
+          {
+            stage: 5,
+            status: "call",
+            title: "ROUT_CALL 판정",
+            summary: "SYNC_SVC이고 Sync-Async 응답 조건이 아니므로 call routing으로 간다.",
+            code: "RequestProcessor routing type branch",
+            detail: "RequestProcessor는 svcTsmtUsgTp, psvItfTp, returnType 조합으로 RouteKeys.ROUTING_TYPE을 만든 뒤 FlowRouter에 넘깁니다.",
+            data: "RouteKeys.ROUTING_TYPE=ROUT_CALL",
+            fields: ["ROUTING_TYPE"]
+          },
+          {
+            stage: 6,
+            status: "call",
+            title: "FlowRouter와 Outbound Process",
+            summary: "ROUT_CALL은 Flow Control Process를 동기 호출하고 IFRouter가 HTTPOUT Process를 선택한다.",
+            code: "FlowRouter.process(), IFRouter, DefaultProcess, HTTPProcess",
+            detail: "FlowRouter는 flwCntlRtnNm=BASEFC를 기준으로 ElinkESBProcessProxy.callElinkESBProcess를 호출합니다. 이후 IFRouter가 ServiceMessage.outbRtnNm=HTTPOUT에 맞는 Process를 실행합니다.",
+            data: "BASEFC -> HTTPOUT -> HTTPProcess",
+            fields: ["CALL_TARGET", "outbRtnNm"]
+          },
+          {
+            stage: 7,
+            status: "pass",
+            title: "요청/응답 변환 후 Source 반환",
+            summary: "TSEAITR01~08 기준으로 외부 XML 요청과 내부 JSON 응답 전문을 만든다.",
+            code: "DefaultProcess.checkResultMessage(), HTTPProcess.makeStandardMessageData()",
+            detail: "요청은 cnvEn=Y일 때 내부 ISO20022 JSON에서 외부 비표준 ISO20022 XML로 바뀝니다. 응답은 bsRspCnvEn/errRspCnvEn 플래그에 따라 외부 XML에서 내부 표준 JSON 응답으로 되돌아갑니다.",
+            data: "request transform=ISO20022 JSON -> XML, response transform=XML -> ISO20022 JSON",
+            fields: ["request transform", "response transform", "source response"]
+          }
+        ]
+      },
+
+      nonStdSync: {
+        title: "비표준 Sync-Sync 요청",
+        sub: "IF_NONSTANDARD -> RequestAction.perform -> ROUT_CALL",
+        kind: "call",
+        messageType: "IF_NONSTANDARD",
+        route: "ROUT_CALL",
+        outcome: "비표준 전문은 표준헤더가 없으므로 RequestAction이 먼저 식별 key를 뽑습니다. selectedKey로 rule을 찾고 StandardMessage를 만든 뒤에는 표준 Sync-Sync와 같은 통제/라우팅/변환 경로를 탑니다.",
+        code: "RequestAction action = ActionFactory.createAction(vo.getActionName());\nkeys = action.perform(message);\nvo.setSelectedKey(keys[i]);\nStandardMessageUtil.getStandardMessageFromRule(message, vo, inboundCharset, prop);",
+        input: [
+          ["Protocol", "HTTP POST approot/HTT/AppInHttSys"],
+          ["REQUEST_ACTION", "ExtPaymentKeyAction"],
+          ["ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+          ["ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+          ["URI rule", "AppInHttSys -> _APP_IN_HTT_SyS"],
+          ["STD_MESSAGE", "IF_NONSTANDARD"],
+          ["Raw 전문", "은행코드|업무코드|거래본문"],
+          ["adptrMsgType", "DELIMITER"],
+          ["message charset", "EUC-KR"]
+        ],
+        judgement: [
+          ["식별 기준", "RequestAction.perform 결과"],
+          ["selectedKey", "BANK01|PAYMENT|0200"],
+          ["EAISvcCd", "IF_EXT_PAYMENT"],
+          ["GUID/GUID_SEQ", "G2026060200020 / 1"],
+          ["returnType", "SEND"],
+          ["svcTsmtUsgTp", "SYNC_SVC"],
+          ["Flow route", "BASEFC"],
+          ["Outbound route", "RESTOUT"]
+        ],
+        envelope: [
+          {
+            name: "Adapter Properties",
+            note: "HttpAdapterServiceSupport",
+            fields: [
+              ["Processor.ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+              ["Processor.ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+              ["requestUrl", "approot/HTT/AppInHttSys"],
+              ["Processor.STD_MESSAGE", "IF_NONSTANDARD"],
+              ["Processor.REQUEST_ACTION", "ExtPaymentKeyAction"],
+              ["inboundCharset", "EUC-KR"]
+            ]
+          },
+          {
+            name: "ProcessVO",
+            note: "RequestProcessor.setVO()",
+            fields: [
+              ["stdMsgTypeCode", "IF_NONSTANDARD"],
+              ["actionName", "ExtPaymentKeyAction"],
+              ["selectedKey", "BANK01|PAYMENT|0200"],
+              ["adptrMsgType", "DELIMITER"],
+              ["uuid", "001-UUID-0020"],
+              ["adapterGroupName", "_APP_IN_HTT_SyS"]
+            ]
+          },
+          {
+            name: "StandardMessage",
+            note: "StandardMessageUtil.getStandardMessageFromRule()",
+            fields: [
+              ["EAISvcCd", "IF_EXT_PAYMENT"],
+              ["GUID", "G2026060200020"],
+              ["GUID_SEQ", "1"],
+              ["sendRecvDivision", "SEND"],
+              ["bizData", "non-standard body mapped to standard layout"]
+            ]
+          },
+          {
+            name: "EAIMessage",
+            note: "TSEAIHE01",
+            fields: [
+              ["EAISvcCd", "IF_EXT_PAYMENT"],
+              ["flwCntlRtnNm", "BASEFC"],
+              ["svcTsmtUsgTp", "SYNC_SVC"],
+              ["psvItfTp", "SYNC_SVC"],
+              ["currentSvcMsg", "SEQ=1"]
+            ]
+          },
+          {
+            name: "ServiceMessage",
+            note: "TSEAIHE02",
+            fields: [
+              ["outbRtnNm", "RESTOUT"],
+              ["targetAdapter", "AG_PAY_REST_OUT"],
+              ["cnvEn", "Y"],
+              ["bsRspCnvEn", "Y"],
+              ["errRspCnvEn", "Y"],
+              ["keyMgtMsgVl", "G2026060200020"]
+            ]
+          },
+          {
+            name: "RouteKeys",
+            note: "RequestProcessor",
+            fields: [
+              ["ROUTING_TYPE", "ROUT_CALL"],
+              ["TRACE_KEY", ""],
+              ["CALL_TARGET", "BASEFC"],
+              ["blocked", "false"]
+            ]
+          },
+          {
+            name: "Outbound Object",
+            note: "RESTProcess",
+            fields: [
+              ["request transform", "비표준 -> 표준 -> REST JSON"],
+              ["request object", "target JSON body"],
+              ["response transform", "REST response -> source 비표준 응답"],
+              ["source response", "은행 응답 포맷"]
+            ]
+          }
+        ],
+        steps: [
+          {
+            stage: 0,
+            status: "pass",
+            title: "비표준 원문 수신",
+            summary: "Source 전문에는 eLink 표준헤더가 없고 adapter property가 식별 경로를 제공한다.",
+            code: "HttpAdapterServiceSupport",
+            detail: "비표준은 원문 자체만으로 EAISvcCd를 직접 읽을 수 없습니다. adapter group에 설정된 request action이 전문 key 추출 책임을 가집니다.",
+            data: "STD_MESSAGE=IF_NONSTANDARD, REQUEST_ACTION=ExtPaymentKeyAction",
+            fields: ["Processor.STD_MESSAGE", "Processor.REQUEST_ACTION"]
+          },
+          {
+            stage: 1,
+            status: "pass",
+            title: "ProcessVO에 actionName 보관",
+            summary: "setVO가 request action과 adapter message type을 보관한다.",
+            code: "RequestProcessor.setVO()",
+            detail: "ProcessVO.selectedKey는 아직 비어 있습니다. 다음 단계의 RequestAction.perform 결과가 들어와야 StandardMessage rule을 찾을 수 있습니다.",
+            data: "actionName=ExtPaymentKeyAction, adptrMsgType=DELIMITER",
+            fields: ["actionName", "adptrMsgType"]
+          },
+          {
+            stage: 2,
+            status: "pass",
+            title: "RequestAction으로 key 추출",
+            summary: "ActionFactory가 action을 만들고 perform(message) 결과를 selectedKey로 사용한다.",
+            code: "ActionFactory.createAction(), RequestAction.perform()",
+            detail: "이 단계가 비표준 전문의 실제 식별점입니다. 추출된 key가 없거나 rule이 맞지 않으면 StandardMessage가 null이 되어 unknown message 처리로 떨어집니다.",
+            data: "selectedKey=BANK01|PAYMENT|0200",
+            fields: ["selectedKey"]
+          },
+          {
+            stage: 2,
+            status: "pass",
+            title: "Rule 기반 StandardMessage 생성",
+            summary: "selectedKey와 adapter metadata로 표준전문 구성 rule을 찾는다.",
+            code: "StandardMessageUtil.getStandardMessageFromRule()",
+            detail: "표준전문이 만들어진 뒤부터는 표준 경로와 같은 방식으로 EAISvcCd, GUID, 송수신 구분을 읽습니다.",
+            data: "EAISvcCd=IF_EXT_PAYMENT, GUID=G2026060200020",
+            fields: ["EAISvcCd", "GUID", "bizData"]
+          },
+          {
+            stage: 3,
+            status: "pass",
+            title: "EAIMessage와 ServiceMessage 조회",
+            summary: "EAISvcCd가 거래 메타데이터의 주 키 역할을 한다.",
+            code: "EAIMessageManager",
+            detail: "비표준 식별은 앞단에서만 다르고, 이후 Flow route, outbound route, 변환 플래그 판정은 같은 메타데이터 모델을 사용합니다.",
+            data: "BASEFC, RESTOUT, AG_PAY_REST_OUT",
+            fields: ["flwCntlRtnNm", "outbRtnNm", "targetAdapter"]
+          },
+          {
+            stage: 4,
+            status: "pass",
+            title: "거래통제/유량제어 통과",
+            summary: "EAISvcCd와 기관 코드 기준 제한이 없다.",
+            code: "RestrictInfoManager, InflowControlUtil",
+            detail: "차단 판정이 없으므로 FlowRouter 호출이 가능해집니다.",
+            data: "restrict=pass, inflow=pass",
+            fields: ["blocked"]
+          },
+          {
+            stage: 5,
+            status: "call",
+            title: "ROUT_CALL 판정",
+            summary: "동기 요청이므로 Flow Control을 즉시 호출한다.",
+            code: "RequestProcessor routing type branch",
+            detail: "svcTsmtUsgTp=SYNC_SVC이고 returnType=SEND라서 Sync-Async 응답 topic 조건에 해당하지 않습니다.",
+            data: "ROUTING_TYPE=ROUT_CALL",
+            fields: ["ROUTING_TYPE"]
+          },
+          {
+            stage: 6,
+            status: "call",
+            title: "REST Target 요청 변환",
+            summary: "표준전문 업무부를 target REST JSON으로 변환한다.",
+            code: "DefaultProcess, RESTProcess",
+            detail: "비표준 원문이 그대로 Target으로 가지 않습니다. 표준전문으로 정규화된 뒤 outbound 변환 rule을 거쳐 target request object가 만들어집니다.",
+            data: "TSEAITR01~08, cnvEn=Y",
+            fields: ["request transform", "request object"]
+          },
+          {
+            stage: 7,
+            status: "pass",
+            title: "응답을 Source 포맷으로 재변환",
+            summary: "Target 응답은 source adapter의 응답 전문 구조에 맞춰 반환된다.",
+            code: "DefaultProcess.checkResultMessage()",
+            detail: "정상 응답은 bsRspCnvEn, 오류 응답은 errRspCnvEn 플래그가 실제 변환 여부를 결정합니다.",
+            data: "REST response -> 은행 응답 포맷",
+            fields: ["response transform", "source response"]
+          }
+        ]
+      },
+
+      subQueue: {
+        title: "SUB표준 Async-Async 응답",
+        sub: "IF_SUBSTANDARD -> parseSub/mapFromSub -> ROUT_QUEUE",
+        kind: "queue",
+        messageType: "IF_SUBSTANDARD",
+        route: "ROUT_QUEUE",
+        outcome: "SUB표준 전문은 key 추출 후 sub layout을 표준전문으로 매핑합니다. 서비스 전송 유형이 비동기이면 RequestProcessor는 FlowRouter에 ROUT_QUEUE를 넘기고, FlowRouter는 JMS Queue에 적재합니다.",
+        code: "if (!SYNC_SVC.equals(svcTsmtUsgTp)) {\n  prop.setProperty(RouteKeys.ROUTING_TYPE, RouteKeys.ROUT_QUEUE);\n}\nJMSSender.sendToQueue(queueInfo, eaiMessage, prop);",
+        input: [
+          ["Protocol", "JMS inbound queue"],
+          ["REQUEST_ACTION", "SubReplyKeyAction"],
+          ["ADAPTER_GROUP_NAME", "AG_BATCH_JMS_IN"],
+          ["ADAPTER_NAME", "JMS_BATCH_01"],
+          ["STD_MESSAGE", "IF_SUBSTANDARD"],
+          ["Raw 전문", "SUB헤더 + SUB업무부"],
+          ["adptrMsgType", "FLAT_SUB"],
+          ["message charset", "UTF-8"]
+        ],
+        judgement: [
+          ["식별 기준", "RequestAction.perform + Sub mapper"],
+          ["selectedKey", "LEGACY_REPLY|0210"],
+          ["EAISvcCd", "IF_BATCH_REPLY"],
+          ["GUID/GUID_SEQ", "G2026060199001 / 3"],
+          ["returnType", "RECV"],
+          ["svcTsmtUsgTp", "ASYNC_SVC"],
+          ["Flow route", "BASEFC"],
+          ["Queue", "FC.BASEFC.REQUEST"]
+        ],
+        envelope: [
+          {
+            name: "Adapter Properties",
+            note: "JMS inbound",
+            fields: [
+              ["Processor.ADAPTER_GROUP_NAME", "AG_BATCH_JMS_IN"],
+              ["Processor.ADAPTER_NAME", "JMS_BATCH_01"],
+              ["Processor.STD_MESSAGE", "IF_SUBSTANDARD"],
+              ["Processor.REQUEST_ACTION", "SubReplyKeyAction"],
+              ["inboundCharset", "UTF-8"]
+            ]
+          },
+          {
+            name: "ProcessVO",
+            note: "RequestProcessor.setVO()",
+            fields: [
+              ["stdMsgTypeCode", "IF_SUBSTANDARD"],
+              ["actionName", "SubReplyKeyAction"],
+              ["selectedKey", "LEGACY_REPLY|0210"],
+              ["adptrMsgType", "FLAT_SUB"],
+              ["uuid", "001-UUID-9901"],
+              ["adapterGroupName", "AG_BATCH_JMS_IN"]
+            ]
+          },
+          {
+            name: "StandardMessage",
+            note: "parseSub() -> mapFromSub()",
+            fields: [
+              ["EAISvcCd", "IF_BATCH_REPLY"],
+              ["GUID", "G2026060199001"],
+              ["GUID_SEQ", "3"],
+              ["sendRecvDivision", "RECV"],
+              ["bizData", "SUB layout mapped to standard layout"]
+            ]
+          },
+          {
+            name: "EAIMessage",
+            note: "TSEAIHE01",
+            fields: [
+              ["EAISvcCd", "IF_BATCH_REPLY"],
+              ["flwCntlRtnNm", "BASEFC"],
+              ["svcTsmtUsgTp", "ASYNC_SVC"],
+              ["psvItfTp", "ASYNC_SVC"],
+              ["currentSvcMsg", "SEQ=2"]
+            ]
+          },
+          {
+            name: "ServiceMessage",
+            note: "TSEAIHE02",
+            fields: [
+              ["outbRtnNm", "SOCKETOUT"],
+              ["targetAdapter", "AG_LEGACY_SOCKET_OUT"],
+              ["cnvEn", "Y"],
+              ["bsRspCnvEn", "N"],
+              ["errRspCnvEn", "Y"],
+              ["keyMgtMsgVl", "G2026060199001"]
+            ]
+          },
+          {
+            name: "RouteKeys",
+            note: "RequestProcessor",
+            fields: [
+              ["ROUTING_TYPE", "ROUT_QUEUE"],
+              ["TRACE_KEY", ""],
+              ["QUEUE", "FC.BASEFC.REQUEST"],
+              ["blocked", "false"]
+            ]
+          },
+          {
+            name: "Queue Payload",
+            note: "FlowRouter",
+            fields: [
+              ["message object", "EAIMessage"],
+              ["standard payload", "mapped standard message"],
+              ["queue sender", "JMSSender.sendToQueue"],
+              ["next consumer", "FCQueueReceiver"]
+            ]
+          }
+        ],
+        steps: [
+          {
+            stage: 0,
+            status: "pass",
+            title: "SUB표준 응답 수신",
+            summary: "JMS inbound adapter가 SUB표준 전문과 식별용 Properties를 넘긴다.",
+            code: "JMS inbound adapter, RequestDispatcher",
+            detail: "SUB표준은 eLink 표준 전문과 유사하지만 layout이 다릅니다. 바로 StandardReader.parse로 읽지 않고 sub mapper를 거쳐야 합니다.",
+            data: "STD_MESSAGE=IF_SUBSTANDARD, REQUEST_ACTION=SubReplyKeyAction",
+            fields: ["Processor.STD_MESSAGE", "Processor.REQUEST_ACTION"]
+          },
+          {
+            stage: 1,
+            status: "pass",
+            title: "ProcessVO 생성",
+            summary: "stdMsgTypeCode와 actionName을 보관한다.",
+            code: "RequestProcessor.setVO()",
+            detail: "비표준처럼 selectedKey를 얻어야 하지만, 최종 표준전문 생성은 sub layout parser와 mapper를 추가로 사용합니다.",
+            data: "stdMsgTypeCode=IF_SUBSTANDARD, adptrMsgType=FLAT_SUB",
+            fields: ["stdMsgTypeCode", "adptrMsgType", "actionName"]
+          },
+          {
+            stage: 2,
+            status: "pass",
+            title: "key 추출 후 SUB layout 파싱",
+            summary: "RequestAction.perform 결과로 sub 전문 rule을 고른다.",
+            code: "RequestAction.perform(), StandardMessageUtil.getStandardMessageFromRule()",
+            detail: "selectedKey가 어느 SUB전문 layout으로 읽을지를 결정합니다.",
+            data: "selectedKey=LEGACY_REPLY|0210",
+            fields: ["selectedKey"]
+          },
+          {
+            stage: 2,
+            status: "pass",
+            title: "표준전문으로 mapFromSub",
+            summary: "VersionMapper가 SUB layout을 표준 layout으로 변환한다.",
+            code: "standardManager.getVersionMapper().parseSub(), mapFromSub()",
+            detail: "이후 로직이 표준전문을 기준으로 동작하기 때문에 SUB표준 전문도 이 지점에서 StandardMessage로 정규화됩니다.",
+            data: "SUB bizData -> StandardMessage.bizData",
+            fields: ["bizData", "sendRecvDivision"]
+          },
+          {
+            stage: 3,
+            status: "pass",
+            title: "Async 서비스 메타 조회",
+            summary: "TSEAIHE01의 svcTsmtUsgTp가 ASYNC_SVC로 판정된다.",
+            code: "EAIMessageManager",
+            detail: "서비스 전송 유형이 동기가 아니므로 RequestProcessor는 FlowRouter에 queue routing을 지시합니다.",
+            data: "svcTsmtUsgTp=ASYNC_SVC, psvItfTp=ASYNC_SVC",
+            fields: ["svcTsmtUsgTp", "psvItfTp"]
+          },
+          {
+            stage: 4,
+            status: "pass",
+            title: "통제/유량 통과",
+            summary: "비동기 거래도 FlowRouter 전에 같은 제한 판정을 받는다.",
+            code: "RestrictInfoManager, InflowControlUtil",
+            detail: "차단되지 않았으므로 queue 적재 단계까지 진행됩니다.",
+            data: "restrict=pass, inflow=pass",
+            fields: ["blocked"]
+          },
+          {
+            stage: 5,
+            status: "queue",
+            title: "ROUT_QUEUE 판정",
+            summary: "svcTsmtUsgTp가 SYNC_SVC가 아니므로 JMS Queue 경로를 선택한다.",
+            code: "RequestProcessor routing type branch",
+            detail: "이 판정은 FlowRouter의 책임이 아닙니다. FlowRouter는 이미 결정된 ROUTING_TYPE을 실행합니다.",
+            data: "ROUTING_TYPE=ROUT_QUEUE",
+            fields: ["ROUTING_TYPE", "QUEUE"]
+          },
+          {
+            stage: 6,
+            status: "queue",
+            title: "FlowRouter가 Queue 적재",
+            summary: "JMSSender.sendToQueue로 EAIMessage를 Flow Control queue에 보낸다.",
+            code: "FlowRouter.process(), JMSSender.sendToQueue()",
+            detail: "이후 실제 Target 호출은 queue consumer가 다시 Flow Control/IFRouter/Process를 실행하면서 진행합니다.",
+            data: "queue=FC.BASEFC.REQUEST, payload=EAIMessage",
+            fields: ["queue sender", "next consumer"]
+          },
+          {
+            stage: 7,
+            status: "queue",
+            title: "Source 응답은 queue 적재 결과로 종료",
+            summary: "동기 Target 응답을 기다리지 않고 비동기 처리로 넘긴다.",
+            code: "FCQueueReceiver, DefaultProcess",
+            detail: "장애 분석 시 Source 요청 성공과 Target 처리 성공을 분리해서 봐야 합니다. Source 입장에서는 queue 적재까지가 1차 완료입니다.",
+            data: "source ack=queue accepted",
+            fields: ["message object", "next consumer"]
+          }
+        ]
+      },
+
+      syncAsyncTopic: {
+        title: "Sync-Async 후속 응답",
+        sub: "returnType=RECV -> ROUT_TOPIC",
+        kind: "topic",
+        messageType: "IF_STANDARD",
+        route: "ROUT_TOPIC",
+        outcome: "Sync-Async에서 후속 응답 전문이 들어오면 Source의 대기 거래와 매칭해야 합니다. RequestProcessor는 returnType=RECV, svcTsmtUsgTp=SYNC_SVC, psvItfTp=ASYNC_SVC 조합을 보고 ROUT_TOPIC과 traceKey를 세팅합니다.",
+        code: "if (SYNC_SVC.equals(svcTsmtUsgTp)\n    && ASYNC_SVC.equals(psvItfTp)\n    && SEND_RECV_CD_RECV.equals(returnType)) {\n  prop.setProperty(RouteKeys.ROUTING_TYPE, RouteKeys.ROUT_TOPIC);\n  prop.setProperty(RouteKeys.TRACE_KEY, currentSvcMsg.getKeyMgtMsgVl());\n}",
+        input: [
+          ["Protocol", "HTTP callback approot/HTT/AppInHttSys"],
+          ["REQUEST_ACTION", "(표준 응답)"],
+          ["ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+          ["ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+          ["URI rule", "AppInHttSys -> _APP_IN_HTT_SyS"],
+          ["STD_MESSAGE", "IF_STANDARD"],
+          ["Raw 전문", "표준 응답헤더 + 업무응답"],
+          ["adptrMsgType", "FLAT"],
+          ["message charset", "UTF-8"]
+        ],
+        judgement: [
+          ["식별 기준", "표준헤더 returnType=RECV"],
+          ["EAISvcCd", "IF_CORE_REPLY"],
+          ["GUID/GUID_SEQ", "G2026060200500 / 2"],
+          ["traceKey", "TR-G2026060200500"],
+          ["returnType", "RECV"],
+          ["svcTsmtUsgTp", "SYNC_SVC"],
+          ["psvItfTp", "ASYNC_SVC"],
+          ["Topic action", "SessionManager.putTopic"]
+        ],
+        envelope: [
+          {
+            name: "Adapter Properties",
+            note: "HTTP callback",
+            fields: [
+              ["Processor.ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+              ["Processor.ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+              ["requestUrl", "approot/HTT/AppInHttSys"],
+              ["Processor.STD_MESSAGE", "IF_STANDARD"],
+              ["Processor.REQUEST_ACTION", ""],
+              ["inboundCharset", "UTF-8"]
+            ]
+          },
+          {
+            name: "ProcessVO",
+            note: "RequestProcessor.setVO()",
+            fields: [
+              ["stdMsgTypeCode", "IF_STANDARD"],
+              ["adptrMsgType", "FLAT"],
+              ["instiNo", "001"],
+              ["uuid", "001-UUID-0500"],
+              ["traceKey", "TR-G2026060200500"],
+              ["adapterGroupName", "_APP_IN_HTT_SyS"]
+            ]
+          },
+          {
+            name: "StandardMessage",
+            note: "StandardReader.parse()",
+            fields: [
+              ["EAISvcCd", "IF_CORE_REPLY"],
+              ["GUID", "G2026060200500"],
+              ["GUID_SEQ", "2"],
+              ["sendRecvDivision", "RECV"],
+              ["bizData", "async response body"]
+            ]
+          },
+          {
+            name: "EAIMessage",
+            note: "TSEAIHE01",
+            fields: [
+              ["EAISvcCd", "IF_CORE_REPLY"],
+              ["flwCntlRtnNm", "BASEFC"],
+              ["svcTsmtUsgTp", "SYNC_SVC"],
+              ["psvItfTp", "ASYNC_SVC"],
+              ["currentSvcMsg", "SEQ=2"]
+            ]
+          },
+          {
+            name: "ServiceMessage",
+            note: "TSEAIHE02",
+            fields: [
+              ["outbRtnNm", "(후속 응답 매칭)"],
+              ["targetAdapter", "Source wait session"],
+              ["cnvEn", "N"],
+              ["bsRspCnvEn", "Y"],
+              ["errRspCnvEn", "Y"],
+              ["keyMgtMsgVl", "TR-G2026060200500"]
+            ]
+          },
+          {
+            name: "RouteKeys",
+            note: "RequestProcessor",
+            fields: [
+              ["ROUTING_TYPE", "ROUT_TOPIC"],
+              ["TRACE_KEY", "TR-G2026060200500"],
+              ["TOPIC_ACTION", "SessionManager.putTopic"],
+              ["blocked", "false"]
+            ]
+          },
+          {
+            name: "Waiting Source",
+            note: "DefaultProcess/HTTPProcess",
+            fields: [
+              ["wait registration", "getTopicProperty()"],
+              ["reply handoff", "setTopicResult()"],
+              ["timeout path", "executeTimeout()"],
+              ["source response", "후속 응답 전문 반환"]
+            ]
+          }
+        ],
+        steps: [
+          {
+            stage: 0,
+            status: "pass",
+            title: "후속 응답 전문 수신",
+            summary: "Target 또는 중계 시스템이 원거래에 대한 응답 전문을 보낸다.",
+            code: "HTTP inbound callback",
+            detail: "이 전문은 새 요청처럼 들어오지만 의미상 이미 대기 중인 Source 거래의 응답입니다.",
+            data: "STD_MESSAGE=IF_STANDARD, sendRecvDivision=RECV",
+            fields: ["Processor.STD_MESSAGE", "sendRecvDivision"]
+          },
+          {
+            stage: 1,
+            status: "pass",
+            title: "ProcessVO와 trace 문맥 준비",
+            summary: "adapter 문맥과 uuid를 만든 뒤 표준 파싱 결과로 traceKey 후보를 잡는다.",
+            code: "RequestProcessor.setVO(), traceKey logic",
+            detail: "Sync-Async에서는 GUID 또는 current ServiceMessage의 keyMgtMsgVl이 후속 응답 매칭의 핵심 key가 됩니다.",
+            data: "traceKey=TR-G2026060200500",
+            fields: ["traceKey"]
+          },
+          {
+            stage: 2,
+            status: "pass",
+            title: "표준 응답 파싱",
+            summary: "표준헤더에서 EAISvcCd, GUID, GUID_SEQ, returnType=RECV를 읽는다.",
+            code: "StandardReader.parse(), STDMessageMapper",
+            detail: "returnType이 SEND인지 RECV인지가 ROUT_TOPIC 판정에 직접 사용됩니다.",
+            data: "EAISvcCd=IF_CORE_REPLY, returnType=RECV",
+            fields: ["EAISvcCd", "GUID", "GUID_SEQ", "sendRecvDivision"]
+          },
+          {
+            stage: 3,
+            status: "pass",
+            title: "Sync-Async 서비스 메타 확인",
+            summary: "svcTsmtUsgTp=SYNC_SVC, psvItfTp=ASYNC_SVC 조합을 확인한다.",
+            code: "EAIMessageManager",
+            detail: "이 조합은 최초 요청은 Source가 동기 대기하지만 실제 업무 응답은 비동기로 도착할 수 있음을 뜻합니다.",
+            data: "svcTsmtUsgTp=SYNC_SVC, psvItfTp=ASYNC_SVC",
+            fields: ["svcTsmtUsgTp", "psvItfTp"]
+          },
+          {
+            stage: 4,
+            status: "pass",
+            title: "통제/유량 통과",
+            summary: "후속 응답도 공통 제한 판정은 통과해야 한다.",
+            code: "RestrictInfoManager, InflowControlUtil",
+            detail: "차단되면 대기 Source에 정상 응답을 넘길 수 없으므로 timeout/오류 처리와 연결됩니다.",
+            data: "restrict=pass, inflow=pass",
+            fields: ["blocked"]
+          },
+          {
+            stage: 5,
+            status: "topic",
+            title: "ROUT_TOPIC 판정",
+            summary: "Sync-Async 응답 조건을 모두 만족해 topic/cache 경로를 선택한다.",
+            code: "RequestProcessor routing type branch",
+            detail: "이 조건은 단순 async queue와 다릅니다. 이미 기다리는 Source 세션에 응답을 연결해야 하므로 traceKey가 반드시 중요합니다.",
+            data: "ROUTING_TYPE=ROUT_TOPIC, TRACE_KEY=TR-G2026060200500",
+            fields: ["ROUTING_TYPE", "TRACE_KEY", "TOPIC_ACTION"]
+          },
+          {
+            stage: 6,
+            status: "topic",
+            title: "FlowRouter가 대기 거래에 응답 연결",
+            summary: "SessionManager.putTopic 또는 topic send로 traceKey 기준 응답을 넘긴다.",
+            code: "FlowRouter.process(), SessionManager.putTopic()",
+            detail: "DefaultProcess/HTTPProcess 쪽에서 getTopicProperty로 등록해 둔 대기자가 있으면 setTopicResult가 이 응답을 받아 Source 응답으로 닫습니다.",
+            data: "SessionManager.putTopic(traceKey, eaiMessage)",
+            fields: ["reply handoff", "wait registration"]
+          },
+          {
+            stage: 7,
+            status: "topic",
+            title: "Source 대기 응답 반환",
+            summary: "대기 중인 HTTP 요청에 후속 응답을 실어 반환한다.",
+            code: "DefaultProcess.setTopicResult(), executeTimeout()",
+            detail: "traceKey 매칭이 실패하거나 timeout이 먼저 발생하면 정상 응답이 아니라 timeout/오류 응답 시나리오로 닫힙니다.",
+            data: "source response=후속 응답 전문",
+            fields: ["source response", "timeout path"]
+          }
+        ]
+      },
+
+      restrictBlock: {
+        title: "거래통제 차단",
+        sub: "RestrictInfoManager -> 제한 응답",
+        kind: "block",
+        messageType: "IF_STANDARD",
+        route: "BLOCK_RESTRICT",
+        outcome: "전문 식별과 EAIMessage 조회까지는 성공했지만 거래통제 메타데이터가 해당 EAISvcCd 또는 기관을 막는 경우입니다. FlowRouter는 호출되지 않고 동기 거래는 제한 응답으로, 비동기 거래는 ExceptionHandler 경로로 종료됩니다.",
+        code: "RestrictInfoVO rvo = RestrictInfoManager.getInstance().getRestrictInfoVO(eaiMsg.getEAISvcCd());\nif (restricted) {\n  vo.setRspErrorCode(EAI_BLOCKED_CODE);\n  eaiMsg.setLogPssSno(400);\n  return getRestrictedResponse(...);\n}",
+        input: [
+          ["Protocol", "HTTP POST approot/HTT/AppInHttSys"],
+          ["REQUEST_ACTION", "(표준)"],
+          ["ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+          ["ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+          ["URI rule", "AppInHttSys -> _APP_IN_HTT_SyS"],
+          ["STD_MESSAGE", "IF_STANDARD"],
+          ["Raw 전문", "표준헤더 + 업무부"],
+          ["adptrMsgType", "FLAT"],
+          ["기관 코드", "003"]
+        ],
+        judgement: [
+          ["식별 기준", "표준 파싱 성공"],
+          ["EAISvcCd", "IF_CIS_TRANSFER"],
+          ["GUID/GUID_SEQ", "G2026060200777 / 1"],
+          ["returnType", "SEND"],
+          ["거래통제", "TSEAITI01 차단"],
+          ["errorCode", "EAI_BLOCKED_CODE"],
+          ["logPssSno", "400"],
+          ["FlowRouter", "호출 안 함"]
+        ],
+        envelope: [
+          {
+            name: "Adapter Properties",
+            note: "HttpAdapterServiceSupport",
+            fields: [
+              ["Processor.ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+              ["Processor.ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+              ["requestUrl", "approot/HTT/AppInHttSys"],
+              ["Processor.STD_MESSAGE", "IF_STANDARD"],
+              ["Processor.REQUEST_ACTION", ""],
+              ["instCode", "003"]
+            ]
+          },
+          {
+            name: "ProcessVO",
+            note: "RequestProcessor.setVO()",
+            fields: [
+              ["stdMsgTypeCode", "IF_STANDARD"],
+              ["adptrMsgType", "FLAT"],
+              ["uuid", "001-UUID-0777"],
+              ["rspErrorCode", "EAI_BLOCKED_CODE"],
+              ["adapterGroupName", "_APP_IN_HTT_SyS"],
+              ["blockedReason", "service/institution restricted"]
+            ]
+          },
+          {
+            name: "StandardMessage",
+            note: "StandardReader.parse()",
+            fields: [
+              ["EAISvcCd", "IF_CIS_TRANSFER"],
+              ["GUID", "G2026060200777"],
+              ["GUID_SEQ", "1"],
+              ["sendRecvDivision", "SEND"],
+              ["instCode", "003"]
+            ]
+          },
+          {
+            name: "EAIMessage",
+            note: "TSEAIHE01",
+            fields: [
+              ["EAISvcCd", "IF_CIS_TRANSFER"],
+              ["flwCntlRtnNm", "BASEFC"],
+              ["svcTsmtUsgTp", "SYNC_SVC"],
+              ["psvItfTp", "SYNC_SVC"],
+              ["logPssSno", "400"]
+            ]
+          },
+          {
+            name: "RestrictInfo",
+            note: "TSEAITI01",
+            fields: [
+              ["target", "EAISvcCd + instCode"],
+              ["restriction", "BLOCK"],
+              ["log", "RestrictInfoManager.addResrtictLog"],
+              ["response", "getRestrictedResponse"]
+            ]
+          },
+          {
+            name: "RouteKeys",
+            note: "not reached",
+            fields: [
+              ["ROUTING_TYPE", "(not set)"],
+              ["TRACE_KEY", ""],
+              ["CALL_TARGET", "(not called)"],
+              ["blocked", "true"]
+            ]
+          },
+          {
+            name: "Response",
+            note: "RequestProcessor",
+            fields: [
+              ["sync response", "제한 응답 전문"],
+              ["REST/HTTP nonstandard", "HTTP 503 가능"],
+              ["async response", "ExceptionHandler.handle"],
+              ["FlowRouter", "skipped"]
+            ]
+          }
+        ],
+        steps: [
+          {
+            stage: 0,
+            status: "pass",
+            title: "표준 요청 수신",
+            summary: "전문 구조 자체는 정상이며 식별 가능한 요청이다.",
+            code: "HttpAdapterServiceStandard",
+            detail: "거래통제는 unknown message가 아닙니다. 전문 식별 이후 EAISvcCd와 기관 코드가 확보되어야 제한 rule을 평가할 수 있습니다.",
+            data: "STD_MESSAGE=IF_STANDARD, instCode=003",
+            fields: ["Processor.STD_MESSAGE", "instCode"]
+          },
+          {
+            stage: 1,
+            status: "pass",
+            title: "ProcessVO 생성",
+            summary: "정상 요청 문맥이 만들어진다.",
+            code: "RequestProcessor.setVO()",
+            detail: "이 단계에서는 아직 차단 여부를 알 수 없습니다.",
+            data: "stdMsgTypeCode=IF_STANDARD, uuid=001-UUID-0777",
+            fields: ["stdMsgTypeCode", "uuid"]
+          },
+          {
+            stage: 2,
+            status: "pass",
+            title: "표준전문 파싱 성공",
+            summary: "EAISvcCd, GUID, 기관 코드가 확보된다.",
+            code: "StandardReader.parse(), STDMessageMapper",
+            detail: "거래통제 판정에 사용할 서비스 코드와 기관 코드가 이 시점에 준비됩니다.",
+            data: "EAISvcCd=IF_CIS_TRANSFER, instCode=003",
+            fields: ["EAISvcCd", "instCode"]
+          },
+          {
+            stage: 3,
+            status: "pass",
+            title: "EAIMessage 조회 성공",
+            summary: "서비스 메타데이터는 존재하지만 아직 FlowRouter로 가지 않는다.",
+            code: "EAIMessageManager",
+            detail: "Flow route가 있더라도 통제/유량 gate를 통과해야만 사용됩니다.",
+            data: "flwCntlRtnNm=BASEFC",
+            fields: ["flwCntlRtnNm"]
+          },
+          {
+            stage: 4,
+            status: "block",
+            title: "거래통제 차단",
+            summary: "RestrictInfoManager가 EAISvcCd 또는 기관 기준 차단을 반환한다.",
+            code: "RestrictInfoManager.getRestrictInfoVO(), addResrtictLog()",
+            detail: "RequestProcessor는 rspErrorCode를 EAI_BLOCKED_CODE로 세팅하고 logPssSno=400을 남긴 뒤 제한 응답을 생성합니다. FlowRouter와 BASEFC는 호출되지 않습니다.",
+            data: "rspErrorCode=EAI_BLOCKED_CODE, logPssSno=400",
+            fields: ["rspErrorCode", "blockedReason", "logPssSno", "restriction"]
+          },
+          {
+            stage: 7,
+            status: "block",
+            title: "제한 응답으로 종료",
+            summary: "동기 거래는 제한 응답 전문 또는 HTTP 503으로 닫힌다.",
+            code: "getRestrictedResponse(), ExceptionHandler.handle()",
+            detail: "비동기라면 Source 응답이 아니라 ExceptionHandler 경로로 넘깁니다. 이 시나리오의 핵심은 FlowRouter가 실행되지 않는다는 점입니다.",
+            data: "FlowRouter=skipped",
+            fields: ["sync response", "REST/HTTP nonstandard", "FlowRouter"]
+          }
+        ]
+      },
+
+      inflowBlock: {
+        title: "유량제어 제한",
+        sub: "Bucket 거부 -> 제한 응답",
+        kind: "block",
+        messageType: "IF_NONSTANDARD",
+        route: "BLOCK_INFLOW",
+        outcome: "전문 식별과 거래통제는 통과했지만 adapterGroup 또는 EAISvcCd 기준 유량 Bucket이 초과된 경우입니다. 이 역시 FlowRouter 전에 종료되며, REST/HTTP 비표준 경로는 HTTP 429로 응답할 수 있습니다.",
+        code: "Bucket bucket = InflowControlUtil.getBucket();\nif (!bucket.isAdapterPass(adapterGroupName)\n    || !bucket.isInterfacePass(eaiSvcCd)) {\n  vo.setRspErrorCode(EAI_INFLOW_BLOCKED_CODE);\n  return getRestrictedResponse(...); // REST/HTTP nonstandard: 429\n}",
+        input: [
+          ["Protocol", "HTTP POST approot/HTT/AppInHttSys"],
+          ["REQUEST_ACTION", "RestPayKeyAction"],
+          ["ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+          ["ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+          ["URI rule", "AppInHttSys -> _APP_IN_HTT_SyS"],
+          ["STD_MESSAGE", "IF_NONSTANDARD"],
+          ["Raw 전문", "JSON body"],
+          ["adptrMsgType", "JSON"],
+          ["client", "OPENAPI-CLIENT-17"]
+        ],
+        judgement: [
+          ["식별 기준", "RequestAction.perform"],
+          ["selectedKey", "POST:/pay|v1"],
+          ["EAISvcCd", "IF_OPEN_PAY"],
+          ["GUID/GUID_SEQ", "G2026060200888 / 1"],
+          ["거래통제", "pass"],
+          ["유량제어", "adapter bucket fail"],
+          ["errorCode", "EAI_INFLOW_BLOCKED_CODE"],
+          ["HTTP status", "429"]
+        ],
+        envelope: [
+          {
+            name: "Adapter Properties",
+            note: "REST inbound",
+            fields: [
+              ["Processor.ADAPTER_GROUP_NAME", "_APP_IN_HTT_SyS"],
+              ["Processor.ADAPTER_NAME", "_APP_IN_HTT_SyS{ALL}"],
+              ["requestUrl", "approot/HTT/AppInHttSys"],
+              ["Processor.STD_MESSAGE", "IF_NONSTANDARD"],
+              ["Processor.REQUEST_ACTION", "RestPayKeyAction"],
+              ["client", "OPENAPI-CLIENT-17"]
+            ]
+          },
+          {
+            name: "ProcessVO",
+            note: "RequestProcessor.setVO()",
+            fields: [
+              ["stdMsgTypeCode", "IF_NONSTANDARD"],
+              ["actionName", "RestPayKeyAction"],
+              ["selectedKey", "POST:/pay|v1"],
+              ["adptrMsgType", "JSON"],
+              ["rspErrorCode", "EAI_INFLOW_BLOCKED_CODE"],
+              ["adapterGroupName", "_APP_IN_HTT_SyS"]
+            ]
+          },
+          {
+            name: "StandardMessage",
+            note: "StandardMessageUtil.getStandardMessageFromRule()",
+            fields: [
+              ["EAISvcCd", "IF_OPEN_PAY"],
+              ["GUID", "G2026060200888"],
+              ["GUID_SEQ", "1"],
+              ["sendRecvDivision", "SEND"],
+              ["bizData", "JSON mapped to standard layout"]
+            ]
+          },
+          {
+            name: "EAIMessage",
+            note: "TSEAIHE01",
+            fields: [
+              ["EAISvcCd", "IF_OPEN_PAY"],
+              ["flwCntlRtnNm", "BASEFC"],
+              ["svcTsmtUsgTp", "SYNC_SVC"],
+              ["psvItfTp", "SYNC_SVC"],
+              ["logPssSno", "400"]
+            ]
+          },
+          {
+            name: "InflowControl",
+            note: "InflowControlUtil",
+            fields: [
+              ["adapter bucket", "fail: _APP_IN_HTT_SyS"],
+              ["interface bucket", "not evaluated"],
+              ["history", "InflowControlDAO.addInflowServicetLog"],
+              ["response", "HTTP 429 or 제한 응답"]
+            ]
+          },
+          {
+            name: "RouteKeys",
+            note: "not reached",
+            fields: [
+              ["ROUTING_TYPE", "(not set)"],
+              ["TRACE_KEY", ""],
+              ["CALL_TARGET", "(not called)"],
+              ["blocked", "true"]
+            ]
+          },
+          {
+            name: "Response",
+            note: "RequestProcessor",
+            fields: [
+              ["sync response", "유량제어 제한 응답"],
+              ["REST/HTTP nonstandard", "HTTP 429"],
+              ["async response", "ExceptionHandler.handle"],
+              ["FlowRouter", "skipped"]
+            ]
+          }
+        ],
+        steps: [
+          {
+            stage: 0,
+            status: "pass",
+            title: "REST 비표준 요청 수신",
+            summary: "JSON body와 request action이 들어온다.",
+            code: "REST inbound adapter",
+            detail: "비표준 REST 요청은 먼저 key 추출과 표준전문 생성에 성공해야 유량제어 대상 EAISvcCd를 알 수 있습니다.",
+            data: "STD_MESSAGE=IF_NONSTANDARD, REQUEST_ACTION=RestPayKeyAction",
+            fields: ["Processor.STD_MESSAGE", "Processor.REQUEST_ACTION"]
+          },
+          {
+            stage: 1,
+            status: "pass",
+            title: "ProcessVO 생성",
+            summary: "adapterGroupName이 유량제어 adapter bucket 판정의 입력이 된다.",
+            code: "RequestProcessor.setVO()",
+            detail: "유량제어는 adapterGroupName과 EAISvcCd 양쪽을 볼 수 있으므로 ProcessVO와 StandardMessage가 모두 필요합니다.",
+            data: "adapterGroupName=_APP_IN_HTT_SyS",
+            fields: ["adapterGroupName", "actionName"]
+          },
+          {
+            stage: 2,
+            status: "pass",
+            title: "RequestAction으로 REST key 추출",
+            summary: "method/path/version 조합을 selectedKey로 만든다.",
+            code: "RequestAction.perform()",
+            detail: "selectedKey가 rule과 매칭되어야 JSON body를 표준 layout으로 옮길 수 있습니다.",
+            data: "selectedKey=POST:/pay|v1",
+            fields: ["selectedKey"]
+          },
+          {
+            stage: 3,
+            status: "pass",
+            title: "EAIMessage 조회와 거래통제 통과",
+            summary: "EAISvcCd=IF_OPEN_PAY는 존재하고 거래통제 rule은 pass다.",
+            code: "EAIMessageManager, RestrictInfoManager",
+            detail: "거래통제가 먼저 막지 않았으므로 다음 gate인 유량제어로 진행합니다.",
+            data: "restrict=pass, EAISvcCd=IF_OPEN_PAY",
+            fields: ["EAISvcCd", "flwCntlRtnNm"]
+          },
+          {
+            stage: 4,
+            status: "block",
+            title: "유량제어 Bucket 거부",
+            summary: "adapterGroup bucket이 현재 요청을 통과시키지 않는다.",
+            code: "InflowControlUtil.getBucket(), bucket.isAdapterPass()",
+            detail: "RequestProcessor는 EAI_INFLOW_BLOCKED_CODE를 세팅하고 필요하면 유량제어 이력을 남깁니다. FlowRouter는 실행되지 않습니다.",
+            data: "adapter bucket=fail, rspErrorCode=EAI_INFLOW_BLOCKED_CODE",
+            fields: ["adapter bucket", "rspErrorCode", "history"]
+          },
+          {
+            stage: 7,
+            status: "block",
+            title: "HTTP 429 또는 제한 응답",
+            summary: "REST/HTTP 비표준이면 429 응답으로 닫을 수 있다.",
+            code: "getRestrictedResponse(), REST/HTTP nonstandard branch",
+            detail: "이 제한은 queue 적체가 아니라 Request Layer gate에서 발생한 거부입니다.",
+            data: "HTTP status=429, FlowRouter=skipped",
+            fields: ["REST/HTTP nonstandard", "FlowRouter"]
+          }
+        ]
+      }
+    };
+
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+      "'": "&#039;"
+    })[char]);
+
+    let currentScenarioId = "stdSync";
+    let currentStepIndex = 0;
+    let autoPlaying = false;
+    let autoTimer = null;
+    let autoDelay = 1800;
+
+    function pillClass(kindOrRoute) {
+      if (kindOrRoute === "queue" || kindOrRoute === "ROUT_QUEUE") return "queue";
+      if (kindOrRoute === "topic" || kindOrRoute === "ROUT_TOPIC") return "topic";
+      if (kindOrRoute === "block" || String(kindOrRoute).startsWith("BLOCK")) return "block";
+      if (kindOrRoute === "pass") return "pass";
+      return "call";
+    }
+
+    function statusLabel(status) {
+      return {
+        pass: "PASS",
+        call: "CALL",
+        queue: "QUEUE",
+        topic: "TOPIC",
+        block: "STOP"
+      }[status] || status.toUpperCase();
+    }
+
+    function renderTabs() {
+      const tabs = document.getElementById("scenarioTabs");
+      tabs.innerHTML = Object.entries(scenarios).map(([id, scenario]) => `
+        <button class="scenario-button ${id === currentScenarioId ? "is-active" : ""}"
+          type="button" role="tab" aria-selected="${id === currentScenarioId}"
+          data-id="${id}" data-kind="${escapeHtml(scenario.kind)}">
+          <span class="scenario-title">${escapeHtml(scenario.title)}</span>
+        </button>
+      `).join("");
+
+      tabs.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => {
+          currentScenarioId = button.dataset.id;
+          currentStepIndex = 0;
+          render();
+          if (autoPlaying) scheduleAuto();
+        });
+      });
+    }
+
+    function renderKv(targetId, rows) {
+      document.getElementById(targetId).innerHTML = rows.map(([key, value]) => `
+        <div class="k">${escapeHtml(key)}</div>
+        <div class="v">${escapeHtml(value)}</div>
+      `).join("");
+    }
+
+    function renderStages(step) {
+      const scenario = scenarios[currentScenarioId];
+      const row = document.getElementById("stageRow");
+      row.innerHTML = stages.map(([title, subtitle], index) => {
+        const isCurrent = index === step.stage;
+        const isStop = isCurrent && step.status === "block";
+        const hasStep = scenario.steps.some((candidate) => candidate.stage === index);
+        return `
+          <button type="button"
+            class="stage ${isCurrent ? "is-current" : ""} ${isStop ? "is-stop" : ""}"
+            data-stage="${index}"
+            ${hasStep ? "" : "disabled"}
+            aria-label="${escapeHtml(title)} 단계로 이동">
+            <strong>${escapeHtml(title)}</strong>
+            <span>${escapeHtml(subtitle)}</span>
+          </button>
+        `;
+      }).join("");
+
+      row.querySelectorAll(".stage:not(:disabled)").forEach((button) => {
+        button.addEventListener("click", () => {
+          moveToStage(Number(button.dataset.stage));
+        });
+      });
+
+      const packet = document.getElementById("packet");
+      const percent = 7 + (step.stage / (stages.length - 1)) * 86;
+      packet.style.left = `${percent}%`;
+      packet.style.background = step.status === "block" ? "var(--block)" : "var(--ink)";
+      packet.textContent = step.status === "block" ? "중단" : "전문";
+    }
+
+    function moveToStage(stageIndex) {
+      const scenario = scenarios[currentScenarioId];
+      const matches = scenario.steps
+        .map((step, index) => ({ step, index }))
+        .filter((entry) => entry.step.stage === stageIndex);
+
+      if (!matches.length) return;
+
+      const currentMatchIndex = matches.findIndex((entry) => entry.index === currentStepIndex);
+      const nextMatch = currentMatchIndex >= 0
+        ? matches[(currentMatchIndex + 1) % matches.length]
+        : matches[0];
+
+      currentStepIndex = nextMatch.index;
+      renderScenarioBody();
+      if (autoPlaying) scheduleAuto();
+    }
+
+    function renderTimeline(scenario) {
+      const timeline = document.getElementById("timeline");
+      timeline.innerHTML = scenario.steps.map((step, index) => `
+        <li>
+          <button type="button"
+            class="step-button ${index === currentStepIndex ? "is-selected" : ""} ${step.status === "block" ? "is-stop" : ""}"
+            data-index="${index}">
+            <span class="step-number">${String(index + 1).padStart(2, "0")}</span>
+            <span class="step-main">
+              <strong>${escapeHtml(step.title)}</strong>
+              <span>${escapeHtml(step.summary)}</span>
+            </span>
+            <span class="status ${escapeHtml(step.status)}">${escapeHtml(statusLabel(step.status))}</span>
+          </button>
+        </li>
+      `).join("");
+
+      timeline.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => {
+          currentStepIndex = Number(button.dataset.index);
+          renderScenarioBody();
+          if (autoPlaying) scheduleAuto();
+        });
+      });
+    }
+
+    function getPayloadStage(step) {
+      const scenarioOverrides = scenarioPayloadStages[currentScenarioId] || {};
+      if (scenarioOverrides[step.stage]) return scenarioOverrides[step.stage];
+      if (step.status === "block") return blockPayloadStage;
+      return payloadStages[step.stage] || payloadStages[0];
+    }
+
+    function renderPayloadPanel(step) {
+      const payload = getPayloadStage(step);
+      const mappings = payload.mappings || [];
+      document.getElementById("payloadPanel").innerHTML = `
+        <div class="payload-head">
+          <strong>${escapeHtml(payload.title || "전문데이터 변화: 내부 표준 ISO20022 JSON -> 외부 비표준 ISO20022 XML")}</strong>
+          <span class="pill ${payload.block ? "block" : "call"}">${escapeHtml(payload.label)}</span>
+        </div>
+        <div class="payload-body">
+          <p class="payload-summary">${escapeHtml(payload.summary)}</p>
+          <div class="payload-code-grid">
+            <div class="payload-code">
+              <div class="payload-label">${escapeHtml(payload.beforeLabel)}</div>
+              <pre>${escapeHtml(payload.before)}</pre>
+            </div>
+            <div class="payload-code">
+              <div class="payload-label">${escapeHtml(payload.afterLabel)}</div>
+              <pre>${escapeHtml(payload.after)}</pre>
+            </div>
+          </div>
+          ${mappings.length ? `
+            <div class="mapping-list" aria-label="JSON to XML 매핑">
+              ${mappings.map(([from, to]) => `
+                <div class="mapping-row">
+                  <code>${escapeHtml(from)}</code>
+                  <span>→</span>
+                  <code>${escapeHtml(to)}</code>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }
+
+    function renderJudgementFqcns(step) {
+      const payload = getPayloadStage(step);
+      const fqcns = payload.fqcns || [];
+      const panel = document.getElementById("judgementFqcnPanel");
+      panel.hidden = !fqcns.length;
+      panel.innerHTML = fqcns.length ? `
+        <div class="fqcn-title">
+          <span>핵심 코드 FQCN</span>
+          <span class="pill ${payload.block ? "block" : "pass"}">${fqcns.length} files</span>
+        </div>
+        <div class="fqcn-list">
+          ${fqcns.map((fqcn) => `<code>${escapeHtml(fqcn)}</code>`).join("")}
+        </div>
+      ` : "";
+    }
+
+    function clearAutoTimer() {
+      if (autoTimer) {
+        window.clearTimeout(autoTimer);
+        autoTimer = null;
+      }
+    }
+
+    function scheduleAuto() {
+      clearAutoTimer();
+      if (!autoPlaying) return;
+      autoTimer = window.setTimeout(() => {
+        advanceStep();
+        scheduleAuto();
+      }, autoDelay);
+    }
+
+    function advanceStep() {
+      const scenario = scenarios[currentScenarioId];
+      currentStepIndex = (currentStepIndex + 1) % scenario.steps.length;
+      renderScenarioBody();
+    }
+
+    function restartSteps() {
+      currentStepIndex = 0;
+      renderScenarioBody();
+      if (autoPlaying) scheduleAuto();
+    }
+
+    function toggleAutoPlay() {
+      autoPlaying = !autoPlaying;
+      renderControls(scenarios[currentScenarioId]);
+      if (autoPlaying) scheduleAuto();
+      else clearAutoTimer();
+    }
+
+    function renderControls(scenario) {
+      const playButton = document.getElementById("playPauseBtn");
+      const restartButton = document.getElementById("restartBtn");
+      const nextButton = document.getElementById("nextStepBtn");
+      const speedSelect = document.getElementById("speedSelect");
+      const progress = document.getElementById("stepProgress");
+      const packet = document.getElementById("packet");
+
+      if (!playButton || !restartButton || !nextButton || !speedSelect || !progress) return;
+
+      playButton.textContent = autoPlaying ? "Ⅱ" : "▶";
+      playButton.title = autoPlaying ? "일시정지" : "자동 재생";
+      playButton.setAttribute("aria-label", playButton.title);
+      playButton.classList.toggle("is-active", autoPlaying);
+
+      speedSelect.value = String(autoDelay);
+      progress.style.width = `${((currentStepIndex + 1) / scenario.steps.length) * 100}%`;
+      if (packet) packet.classList.toggle("is-playing", autoPlaying);
+
+      playButton.onclick = toggleAutoPlay;
+      restartButton.onclick = restartSteps;
+      nextButton.onclick = () => {
+        advanceStep();
+        if (autoPlaying) scheduleAuto();
+      };
+      speedSelect.onchange = (event) => {
+        autoDelay = Number(event.target.value);
+        if (autoPlaying) scheduleAuto();
+      };
+    }
+
+    function renderDetail(step) {
+      document.getElementById("detailCode").textContent = step.code;
+      document.getElementById("detailBody").innerHTML = `
+        <h2 class="detail-title">${escapeHtml(step.title)}</h2>
+        <p class="detail-text">${escapeHtml(step.detail)}</p>
+        <div class="data-box">
+          <strong>데이터 변화</strong>
+          <p>${escapeHtml(step.data)}</p>
+        </div>
+        <div class="codebox">${escapeHtml(step.code)}</div>
+      `;
+    }
+
+    function renderEnvelope(scenario, step) {
+      const highlights = new Set(step.fields || []);
+      document.getElementById("envelopeList").innerHTML = scenario.envelope.map((group) => `
+        <article class="object-card">
+          <div class="object-head">
+            <span>${escapeHtml(group.name)}</span>
+            <span class="object-note">${escapeHtml(group.note)}</span>
+          </div>
+          <div class="object-body">
+            ${group.fields.map(([key, value]) => {
+              const hit = highlights.has(key);
+              return `
+                <div class="field-k ${hit ? "is-highlight" : ""}">${escapeHtml(key)}</div>
+                <div class="field-v ${hit ? "is-highlight" : ""}">${escapeHtml(value)}</div>
+              `;
+            }).join("")}
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderFormula(scenario) {
+      document.getElementById("formulaRows").innerHTML = formula.map((row) => {
+        const hit = row.id === scenario.route || row.result === scenario.route;
+        return `
+          <tr class="${hit ? `is-hit ${pillClass(scenario.kind)}` : ""}">
+            <td>${escapeHtml(row.condition)}</td>
+            <td><span class="pill ${pillClass(row.id === "BLOCK_RESTRICT" || row.id === "BLOCK_INFLOW" ? "block" : row.result)}">${escapeHtml(row.result)}</span></td>
+            <td>${escapeHtml(row.next)}</td>
+          </tr>
+        `;
+      }).join("");
+
+      document.getElementById("outcomeTitle").textContent = scenario.title;
+      const outcomePill = document.getElementById("outcomePill");
+      outcomePill.className = `pill ${pillClass(scenario.route)}`;
+      outcomePill.textContent = scenario.route;
+      document.getElementById("outcomeText").textContent = scenario.outcome;
+      document.getElementById("routeCode").textContent = scenario.code;
+    }
+
+    function renderMeta() {
+      document.getElementById("metaGrid").innerHTML = metaCards.map((card) => `
+        <div class="meta-card">
+          <strong>${escapeHtml(card.title)}</strong>
+          <span>${escapeHtml(card.text)}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderScenarioBody() {
+      const scenario = scenarios[currentScenarioId];
+      const step = scenario.steps[currentStepIndex];
+
+      document.getElementById("scenarioHint").textContent = `${scenario.title}: ${scenario.sub}`;
+      const messageTypePill = document.getElementById("messageTypePill");
+      messageTypePill.textContent = scenario.messageType;
+      messageTypePill.className = `pill ${scenario.messageType === "IF_SUBSTANDARD" ? "queue" : scenario.messageType === "IF_NONSTANDARD" ? "topic" : "call"}`;
+
+      const routePill = document.getElementById("routePill");
+      routePill.textContent = scenario.route;
+      routePill.className = `pill ${pillClass(scenario.route)}`;
+
+      renderKv("inputKv", scenario.input);
+      renderKv("judgementKv", scenario.judgement);
+      renderJudgementFqcns(step);
+      renderStages(step);
+      renderTimeline(scenario);
+      renderPayloadPanel(step);
+      renderDetail(step);
+      renderEnvelope(scenario, step);
+      renderFormula(scenario);
+      renderControls(scenario);
+    }
+
+    function render() {
+      renderTabs();
+      renderScenarioBody();
+      renderMeta();
+    }
+
+    render();
+  </script>
+</body>
+</html>
